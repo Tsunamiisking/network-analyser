@@ -26,6 +26,7 @@ exports.createNetworkData = async (req, res) => {
 
     res.status(201).json({
       success: true,
+      message: "Network data created successfully",
       data: newEntry,
     });
   } catch (error) {
@@ -57,6 +58,7 @@ exports.getHeatmapData = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      message: "Network data retrieved successfully",
       count: data.length,
       data,
     });
@@ -64,4 +66,4 @@ exports.getHeatmapData = async (req, res) => {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
-};
+}; 

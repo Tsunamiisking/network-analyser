@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const { connectDB, closeDB } = require('./src/config/db');
+const networkRoutes = require('./src/routes/networkroutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,9 +31,8 @@ app.get('/', (req, res) => {
   });
 });
 
-// TODO: Add your routes here
-// app.use('/api/users', require('./src/routes/userRoutes'));
-// app.use('/api/networks', require('./src/routes/networkRoutes'));
+// API Routes
+app.use('/api/networks', networkRoutes);
 
 // 404 handler
 app.use((req, res) => {
