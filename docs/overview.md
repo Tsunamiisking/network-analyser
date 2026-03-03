@@ -426,8 +426,8 @@ We welcome contributions! Please see:
 
 ## Contact
 
-- **Project Lead**: Your Name
-- **Email**: contact@network-analyser.com
+- **Project Lead**: Allen Douglas
+- **Email**: douglasallendev@gmail.com
 - **GitHub**: [github.com/network-analyser](https://github.com/)
 - **Documentation**: This repository
 
