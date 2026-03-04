@@ -4,6 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const { connectDB, closeDB } = require('./src/config/db');
 const networkRoutes = require('./src/routes/networkroutes');
+const analyticsRoutes = require('./src/routes/analyticsRoute');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,8 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api/networks', networkRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
 
 // 404 handler
 app.use((req, res) => {
