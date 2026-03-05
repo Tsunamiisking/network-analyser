@@ -1,5 +1,8 @@
 const NetworkData = require("../models/NetworkData");
 const ngeohash = require("ngeohash");
+const redisClient = require("../config/redis");
+
+const CACHE_TTL = 300; // 5 minutes
 
 exports.createNetworkData = async (req, res) => {
   try {
@@ -41,6 +44,23 @@ exports.getHeatmapData = async (req, res) => {
   try {
     const { provider, startDate, endDate, minLat, maxLat, minLng, maxLng } = req.query;
 
+    // Generate cache key from query params
+    const cacheKey = `heatmap:${JSON.stringify(req.query)}`;
+
+    // Check Redis cache
+    try {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        return res.status(200).json({
+          ...JSON.parse(cachedData),
+          cached: true
+        });
+      }
+    } catch (redisError) {
+      console.error("Redis error:", redisError);
+      // Continue to MongoDB if Redis fails
+    }
+
     let filter = {};
 
     // Provider filter
@@ -72,11 +92,22 @@ exports.getHeatmapData = async (req, res) => {
       .select("signalStrength location provider networkType timestamp")
       .limit(5000); // safety limit
 
-    res.status(200).json({
+    const response = {
       success: true,
       count: data.length,
       data,
-    });
+      cached: false
+    };
+
+    // Save to Redis cache for 5 minutes
+    try {
+      await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(response));
+    } catch (redisError) {
+      console.error("Redis cache save error:", redisError);
+      // Continue even if caching fails
+    }
+
+    res.status(200).json(response);
 
   } catch (error) {
     console.error(error);
@@ -87,6 +118,23 @@ exports.getHeatmapData = async (req, res) => {
 exports.getAggregatedHeatmapData = async (req, res) => {
   try {
     const { provider, startDate, endDate, minLat, maxLat, minLng, maxLng, precision } = req.query;
+
+    // Generate cache key from query params
+    const cacheKey = `heatmap:aggregated:${JSON.stringify(req.query)}`;
+
+    // Check Redis cache
+    try {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        return res.status(200).json({
+          ...JSON.parse(cachedData),
+          cached: true
+        });
+      }
+    } catch (redisError) {
+      console.error("Redis error:", redisError);
+      // Continue to MongoDB if Redis fails
+    }
 
     let matchStage = {};
 
@@ -161,12 +209,23 @@ exports.getAggregatedHeatmapData = async (req, res) => {
       };
     });
 
-    res.status(200).json({
+    const response = {
       success: true,
       count: enrichedData.length,
       precision: geohashPrecision,
       data: enrichedData,
-    });
+      cached: false
+    };
+
+    // Save to Redis cache for 5 minutes
+    try {
+      await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(response));
+    } catch (redisError) {
+      console.error("Redis cache save error:", redisError);
+      // Continue even if caching fails
+    }
+
+    res.status(200).json(response);
 
   } catch (error) {
     console.error(error);
