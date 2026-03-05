@@ -6,14 +6,17 @@ const CACHE_TTL = 300; // 5 minutes
 
 exports.createNetworkData = async (req, res) => {
   try {
-    const { signalStrength, provider, networkType, latitude, longitude } = req.body;
-    const geohash = ngeohash.encode(latitude, longitude, 6);
+    const { signalStrength, provider, networkType, latitude, longitude } =
+      req.body;
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    const geohash = ngeohash.encode(lat, lng, 6);
     if (
       signalStrength === undefined ||
       !provider ||
       !networkType ||
-      !latitude ||
-      !longitude
+      latitude === undefined ||
+      longitude === undefined
     ) {
       return res.status(400).json({ message: "Missing required fields" });
     }
@@ -24,7 +27,7 @@ exports.createNetworkData = async (req, res) => {
       networkType,
       location: {
         type: "Point",
-        coordinates: [longitude, latitude],
+        coordinates: [lng, lat],
       },
       geohash,
     });
@@ -42,7 +45,8 @@ exports.createNetworkData = async (req, res) => {
 
 exports.getHeatmapData = async (req, res) => {
   try {
-    const { provider, startDate, endDate, minLat, maxLat, minLng, maxLng } = req.query;
+    const { provider, startDate, endDate, minLat, maxLat, minLng, maxLng } =
+      req.query;
 
     // Generate cache key from query params
     const cacheKey = `heatmap:${JSON.stringify(req.query)}`;
@@ -53,7 +57,7 @@ exports.getHeatmapData = async (req, res) => {
       if (cachedData) {
         return res.status(200).json({
           ...JSON.parse(cachedData),
-          cached: true
+          cached: true,
         });
       }
     } catch (redisError) {
@@ -96,7 +100,7 @@ exports.getHeatmapData = async (req, res) => {
       success: true,
       count: data.length,
       data,
-      cached: false
+      cached: false,
     };
 
     // Save to Redis cache for 5 minutes
@@ -108,7 +112,6 @@ exports.getHeatmapData = async (req, res) => {
     }
 
     res.status(200).json(response);
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -117,7 +120,16 @@ exports.getHeatmapData = async (req, res) => {
 
 exports.getAggregatedHeatmapData = async (req, res) => {
   try {
-    const { provider, startDate, endDate, minLat, maxLat, minLng, maxLng, precision } = req.query;
+    const {
+      provider,
+      startDate,
+      endDate,
+      minLat,
+      maxLat,
+      minLng,
+      maxLng,
+      precision,
+    } = req.query;
 
     // Generate cache key from query params
     const cacheKey = `heatmap:aggregated:${JSON.stringify(req.query)}`;
@@ -128,7 +140,7 @@ exports.getAggregatedHeatmapData = async (req, res) => {
       if (cachedData) {
         return res.status(200).json({
           ...JSON.parse(cachedData),
-          cached: true
+          cached: true,
         });
       }
     } catch (redisError) {
@@ -177,8 +189,8 @@ exports.getAggregatedHeatmapData = async (req, res) => {
           maxSignalStrength: { $max: "$signalStrength" },
           count: { $sum: 1 },
           providers: { $addToSet: "$provider" },
-          networkTypes: { $addToSet: "$networkType" }
-        }
+          networkTypes: { $addToSet: "$networkType" },
+        },
       },
       {
         $project: {
@@ -189,23 +201,23 @@ exports.getAggregatedHeatmapData = async (req, res) => {
           maxSignalStrength: 1,
           count: 1,
           providers: 1,
-          networkTypes: 1
-        }
+          networkTypes: 1,
+        },
       },
-      { $sort: { count: -1 } }
+      { $sort: { count: -1 } },
     ];
 
     const data = await NetworkData.aggregate(pipeline);
 
     // Decode geohash to get center coordinates for each cluster
-    const enrichedData = data.map(item => {
+    const enrichedData = data.map((item) => {
       const decoded = ngeohash.decode(item.geohash);
       return {
         ...item,
         location: {
           type: "Point",
-          coordinates: [decoded.longitude, decoded.latitude]
-        }
+          coordinates: [decoded.longitude, decoded.latitude],
+        },
       };
     });
 
@@ -214,7 +226,7 @@ exports.getAggregatedHeatmapData = async (req, res) => {
       count: enrichedData.length,
       precision: geohashPrecision,
       data: enrichedData,
-      cached: false
+      cached: false,
     };
 
     // Save to Redis cache for 5 minutes
@@ -226,7 +238,6 @@ exports.getAggregatedHeatmapData = async (req, res) => {
     }
 
     res.status(200).json(response);
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
