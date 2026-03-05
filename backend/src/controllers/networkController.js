@@ -1,9 +1,10 @@
 const NetworkData = require("../models/NetworkData");
+const ngeohash = require("ngeohash");
 
 exports.createNetworkData = async (req, res) => {
   try {
     const { signalStrength, provider, networkType, latitude, longitude } = req.body;
-
+    const geohash = ngeohash.encode(latitude, longitude, 6);
     if (
       signalStrength === undefined ||
       !provider ||
@@ -22,6 +23,7 @@ exports.createNetworkData = async (req, res) => {
         type: "Point",
         coordinates: [longitude, latitude],
       },
+      geohash,
     });
 
     res.status(201).json({
