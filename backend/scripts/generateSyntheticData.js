@@ -3,7 +3,10 @@ const NetworkData = require("../src/models/NetworkData");
 const ngeohash = require("ngeohash");
 require("dotenv").config();
 
-mongoose.connect(process.env.MONGODB_URI);
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.DB_NAME || 'network-analyser-db';
+
+mongoose.connect(uri, { dbName });
 
 const providers = ["MTN", "Airtel", "Glo", "9mobile"];
 const networkTypes = ["3G", "4G", "5G"];
