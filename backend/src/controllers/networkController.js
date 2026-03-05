@@ -243,3 +243,125 @@ exports.getAggregatedHeatmapData = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+exports.bestAggregatedNetwork = async (req, res) => {
+  try {
+    const { lat, lng, radius } = req.query;
+
+    // Validate required parameters
+    if (!lat || !lng) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Missing required parameters: lat and lng" 
+      });
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const maxDistance = parseInt(radius) || 2000; // default 2km
+
+    // Validate coordinates
+    if (isNaN(latitude) || isNaN(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid coordinates" 
+      });
+    }
+
+    // Generate cache key from query params
+    const cacheKey = `best:${latitude}:${longitude}:${maxDistance}`;
+
+    // Check Redis cache
+    try {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        return res.status(200).json({
+          ...JSON.parse(cachedData),
+          cached: true,
+        });
+      }
+    } catch (redisError) {
+      console.error("Redis error:", redisError);
+      // Continue to MongoDB if Redis fails
+    }
+
+    const pipeline = [
+      {
+        $geoNear: {
+          near: {
+            type: "Point",
+            coordinates: [longitude, latitude]
+          },
+          distanceField: "distance",
+          maxDistance: maxDistance,
+          spherical: true,
+          key: "location" // specify the geospatial index field
+        }
+      },
+      {
+        $group: {
+          _id: "$provider",
+          avgSignalStrength: { $avg: "$signalStrength" },
+          minSignalStrength: { $min: "$signalStrength" },
+          maxSignalStrength: { $max: "$signalStrength" },
+          count: { $sum: 1 },
+          avgDistance: { $avg: "$distance" },
+          networkTypes: { $addToSet: "$networkType" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          provider: "$_id",
+          avgSignalStrength: { $round: ["$avgSignalStrength", 2] },
+          minSignalStrength: 1,
+          maxSignalStrength: 1,
+          count: 1,
+          avgDistance: { $round: ["$avgDistance", 2] },
+          networkTypes: 1
+        }
+      },
+      {
+        $sort: { avgSignalStrength: -1 }
+      }
+    ];
+
+    const data = await NetworkData.aggregate(pipeline);
+
+    if (data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No network data found within ${maxDistance}m of the specified location`
+      });
+    }
+
+    const response = {
+      success: true,
+      location: {
+        type: "Point",
+        coordinates: [longitude, latitude]
+      },
+      radius: maxDistance,
+      bestProvider: data[0], // highest avg signal
+      allProviders: data,
+      cached: false
+    };
+
+    // Save to Redis cache for 5 minutes
+    try {
+      await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(response));
+    } catch (redisError) {
+      console.error("Redis cache save error:", redisError);
+      // Continue even if caching fails
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+};
+
