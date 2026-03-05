@@ -1,44 +1,28 @@
 const mongoose = require("mongoose");
 
-const networkDataSchema = new mongoose.Schema(
-  {
-    signalStrength: {
-      type: Number,
-      required: true,
-    },
+const NetworkDataSchema = new mongoose.Schema({
+  provider: String,
+  signalStrength: Number,
+  networkType: String,
 
-    provider: {
+  location: {
+    type: {
       type: String,
-      required: true,
-      enum: ["MTN", "Airtel", "Glo", "9mobile"],
+      enum: ["Point"],
+      default: "Point"
     },
-
-    networkType: {
-      type: String,
-      required: true,
-      enum: ["2G", "3G", "4G", "5G"],
-    },
-
-    location: {
-      type: {
-        type: String,
-        enum: ["Point"],
-        required: true,
-      },
-      coordinates: {
-        type: [Number], // [longitude, latitude]
-        required: true,
-      },
-    },
-
-    timestamp: {
-      type: Date,
-      default: Date.now,
-    },
+    coordinates: [Number]
   },
-  { timestamps: true }
-);
 
-networkDataSchema.index({ location: "2dsphere" });
+  geohash: String,
 
-module.exports = mongoose.model("NetworkData", networkDataSchema);
+  timestamp: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+NetworkDataSchema.index({ location: "2dsphere" });
+NetworkDataSchema.index({ geohash: 1 });
+
+module.exports = mongoose.model("NetworkData", NetworkDataSchema);
