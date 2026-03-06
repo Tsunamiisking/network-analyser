@@ -6,11 +6,18 @@ const CACHE_TTL = 300; // 5 minutes
 
 exports.createNetworkData = async (req, res) => {
   try {
-    const { signalStrength, provider, networkType, latitude, longitude } =
-      req.body;
-    const lat = parseFloat(latitude);
-    const lng = parseFloat(longitude);
-    const geohash = ngeohash.encode(lat, lng, 6);
+    const {
+      signalStrength,
+      provider,
+      networkType,
+      latitude,
+      longitude,
+      rsrp,
+      rsrq,
+      connectivityFlag,
+      deviceId,
+    } = req.body;
+
     if (
       signalStrength === undefined ||
       !provider ||
@@ -21,6 +28,21 @@ exports.createNetworkData = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+
+    // Spatial plausibility check — reject coordinates outside Nigeria bounding box
+    if (lat < 4.0 || lat > 14.0 || lng < 2.6 || lng > 15.0) {
+      return res.status(400).json({ message: "Coordinates outside valid geographic range" });
+    }
+
+    // RSRP range validation per 3GPP spec (-44 dBm to -140 dBm)
+    if (rsrp !== undefined && rsrp !== null && (rsrp > -44 || rsrp < -140)) {
+      return res.status(400).json({ message: "RSRP value outside physically valid range (-44 to -140 dBm)" });
+    }
+
+    const geohash = ngeohash.encode(lat, lng, 6);
+
     const newEntry = await NetworkData.create({
       signalStrength,
       provider,
@@ -30,6 +52,10 @@ exports.createNetworkData = async (req, res) => {
         coordinates: [lng, lat],
       },
       geohash,
+      rsrp: rsrp !== undefined && rsrp !== null ? parseFloat(rsrp) : null,
+      rsrq: rsrq !== undefined && rsrq !== null ? parseFloat(rsrq) : null,
+      connectivityFlag: connectivityFlag !== undefined ? Boolean(connectivityFlag) : true,
+      deviceId: deviceId || null,
     });
 
     res.status(201).json({
@@ -365,3 +391,106 @@ exports.bestAggregatedNetwork = async (req, res) => {
   }
 };
 
+exports.getDeadZones = async (req, res) => {
+  try {
+    const { provider, minLat, maxLat, minLng, maxLng, precision } = req.query;
+
+    // Generate cache key from query params
+    const cacheKey = `deadzones:${JSON.stringify(req.query)}`;
+
+    // Check Redis cache
+    try {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        return res.status(200).json({
+          ...JSON.parse(cachedData),
+          cached: true,
+        });
+      }
+    } catch (redisError) {
+      console.error("Redis error:", redisError);
+    }
+
+    let matchStage = {
+      connectivityFlag: false // Only areas with NO connectivity
+    };
+
+    // Provider filter
+    if (provider) {
+      matchStage.provider = provider;
+    }
+
+    // Bounding box filter
+    if (minLat && maxLat && minLng && maxLng) {
+      matchStage.location = {
+        $geoWithin: {
+          $box: [
+            [parseFloat(minLng), parseFloat(minLat)],
+            [parseFloat(maxLng), parseFloat(maxLat)],
+          ],
+        },
+      };
+    }
+
+    const geohashPrecision = parseInt(precision) || 5;
+
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $group: {
+          _id: { $substr: ["$geohash", 0, geohashPrecision] },
+          count: { $sum: 1 },
+          providers: { $addToSet: "$provider" },
+          networkTypes: { $addToSet: "$networkType" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          geohash: "$_id",
+          count: 1,
+          providers: 1,
+          networkTypes: 1
+        }
+      },
+      { $sort: { count: -1 } }
+    ];
+
+    const data = await NetworkData.aggregate(pipeline);
+
+    // Decode geohash to get center coordinates
+    const enrichedData = data.map((item) => {
+      const decoded = ngeohash.decode(item.geohash);
+      return {
+        ...item,
+        location: {
+          type: "Point",
+          coordinates: [decoded.longitude, decoded.latitude],
+        },
+      };
+    });
+
+    const response = {
+      success: true,
+      count: enrichedData.length,
+      precision: geohashPrecision,
+      data: enrichedData,
+      cached: false
+    };
+
+    // Save to Redis cache for 5 minutes
+    try {
+      await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(response));
+    } catch (redisError) {
+      console.error("Redis cache save error:", redisError);
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+};
