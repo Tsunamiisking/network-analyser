@@ -27,16 +27,27 @@ The Network Analyser system follows a multi-tier, service-oriented architecture 
 │  Data        │  │  Analytics   │  │  Admin       │
 │  Collection  │  │  Services    │  │  Services    │
 │  Service     │  │              │  │              │
-└──────────────┘  └──────────────┘  └──────────────┘
-        │                  │                  │
-        └──────────────────┼──────────────────┘
-                           ▼
+└──────────────┘  └──────┬───────┘  └──────────────┘
+        │                │                  │
+        │                └──────┐           │
+        │                       ▼           │
+        │           ┌────────────────────┐  │
+        │           │  Caching Layer     │  │
+        │           │  (Redis)           │  │
+        │           │  • 5-min TTL       │  │
+        │           │  • Query results   │  │
+        │           └────────────────────┘  │
+        │                       │           │
+        └───────────────────────┼───────────┘
+                                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Data Persistence Layer                      │
 │                     MongoDB Atlas                            │
 │  ┌────────────────┐  ┌─────────────┐  ┌────────────────┐  │
-│  │  Measurements  │  │  Outages    │  │  Users/Config  │  │
+│  │  NetworkData   │  │  Reports    │  │  Users/Config  │  │
 │  │  Collection    │  │  Collection │  │  Collections   │  │
+│  │  • Geohash     │  │             │  │                │  │
+│  │  • 2dsphere    │  │             │  │                │  │
 │  └────────────────┘  └─────────────┘  └────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -71,14 +82,17 @@ The Network Analyser system follows a multi-tier, service-oriented architecture 
 **Data Collection Service**
 - Receives measurements from mobile clients
 - Validates data integrity
-- Enriches data with metadata (timestamp, IP, etc.)
+- Generates geohash (precision 6, ~1.2km) for spatial clustering
+- Enriches data with metadata (timestamp, GeoJSON location, etc.)
 - Persists to database
 
 **Analytics Service**
 - Aggregates measurements by region, provider, time
 - Computes statistical metrics (avg, min, max, percentiles)
-- Generates heatmap data
-- Processes time-series queries
+- Generates heatmap data (raw and geohash-clustered)
+- Processes geospatial queries with $geoNear
+- Determines best providers by location
+- Implements Redis caching layer (5-minute TTL)
 
 **Admin Service**
 - Manages system configuration
@@ -86,13 +100,40 @@ The Network Analyser system follows a multi-tier, service-oriented architecture 
 - Provides data moderation capabilities
 - System health monitoring
 
-### 4. Data Layer
+### 4. Caching Layer
+
+**Redis Cache**
+- In-memory key-value store
+- 5-minute TTL (Time To Live) for all cached queries
+- Cache keys based on query parameters
+- Automatic expiration and invalidation
+- Falls back to MongoDB if Redis unavailable
+- Improves response time by 10-50x for repeated queries
+
+**Cached Endpoints:**
+- `GET /api/networks/heatmap` - Detailed measurements
+- `GET /api/networks/heatmap/aggregated` - Geohash clusters
+- `GET /api/networks/best` - Provider rankings by location
+
+**Cache Strategy:**
+```
+Request → Check Redis → If hit: Return cached
+                      → If miss: Query MongoDB → Cache result → Return
+```
+
+### 5. Data Layer
 
 **MongoDB Database**
 - Document-based storage
-- Geospatial indexing (2dsphere)
+- Geospatial indexing (2dsphere) on location field
+- Geohash indexing for clustering queries
 - Aggregation pipeline support
 - High write throughput for incoming measurements
+
+**Collections:**
+- `networkdata` - Network signal measurements with geohash
+- `reports` - User-submitted outage reports
+- `users` - User accounts and configuration
 
 ## Architecture Principles
 

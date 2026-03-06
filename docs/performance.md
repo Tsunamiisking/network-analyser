@@ -53,30 +53,48 @@ This document outlines performance requirements, optimization strategies, and mo
 
 **Critical Indexes**:
 ```javascript
-// Geospatial index for location queries
-db.measurements.createIndex({ location: "2dsphere" });
+// Geospatial index for location queries ($geoWithin, $geoNear)
+db.networkdata.createIndex({ location: "2dsphere" });
+
+// Geohash index for clustering queries (aggregated heatmap)
+db.networkdata.createIndex({ geohash: 1 });
 
 // Compound index for provider + time queries
-db.measurements.createIndex({ provider: 1, timestamp: -1 });
+db.networkdata.createIndex({ provider: 1, timestamp: -1 });
 
 // Covering index for common queries
-db.measurements.createIndex({ 
+db.networkdata.createIndex({ 
   provider: 1, 
   timestamp: -1, 
   signalStrength: 1 
 });
 ```
 
+**Geohash Clustering Benefits**:
+- Reduces result set from 10,000+ points to 50-100 clusters
+- Uses simple string prefix matching (fast)
+- Enables efficient aggregation by geographic region
+- Example: Query returning 5,000 points takes ~500ms, aggregated by geohash returns 50 clusters in ~100ms
+
 **Index Performance Monitoring**:
 ```javascript
 // Check index usage
-db.measurements.aggregate([
+db.networkdata.aggregate([
   { $indexStats: {} }
 ]);
 
 // Explain query execution
-db.measurements.find({ provider: "Verizon" })
+db.networkdata.find({ provider: "MTN" })
   .explain("executionStats");
+
+// Check geohash aggregation performance
+db.networkdata.explain("executionStats").aggregate([
+  { $match: { provider: "MTN" } },
+  { $group: { 
+    _id: { $substr: ["$geohash", 0, 5] },
+    avgSignal: { $avg: "$signalStrength" }
+  }}
+]);
 ```
 
 ### Query Optimization
@@ -127,77 +145,111 @@ db.measurements.aggregate([
 
 ### Caching Strategy
 
-**Redis Integration**:
+**Redis Implementation**:
+
+The system uses Redis for caching query results with automatic expiration:
+
 ```javascript
-const Redis = require('ioredis');
-const redis = new Redis(process.env.REDIS_URL);
+const redis = require("redis");
 
-async function getCachedData(key, fetchFunction, ttl = 300) {
-  // Try cache first
-  const cached = await redis.get(key);
-  if (cached) {
-    return JSON.parse(cached);
+const redisClient = redis.createClient({
+  socket: {
+    host: process.env.REDIS_HOST || "127.0.0.1",
+    port: process.env.REDIS_PORT || 6379,
+    reconnectStrategy: (retries) => {
+      if (retries > 10) return new Error("Redis reconnection failed");
+      return retries * 100;
+    }
   }
-  
-  // Fetch fresh data
-  const data = await fetchFunction();
-  
-  // Store in cache
-  await redis.setex(key, ttl, JSON.stringify(data));
-  
-  return data;
-}
-
-// Usage
-app.get('/api/v1/analytics/providers', async (req, res) => {
-  const { lat, lng, radius } = req.query;
-  const cacheKey = `providers:${lat}:${lng}:${radius}`;
-  
-  const data = await getCachedData(
-    cacheKey,
-    () => calculateProviderStats({ lat, lng }, radius),
-    300 // 5 minutes
-  );
-  
-  res.json(data);
 });
+
+const CACHE_TTL = 300; // 5 minutes
 ```
 
-**Cache Invalidation**:
+**Cached Endpoints:**
+
+All read endpoints implement the following pattern:
+
 ```javascript
-// Invalidate on new data
-app.post('/api/v1/measurements', async (req, res) => {
-  await storeMeasurement(req.body);
+exports.getHeatmapData = async (req, res) => {
+  // 1. Generate cache key from query params
+  const cacheKey = `heatmap:${JSON.stringify(req.query)}`;
   
-  // Invalidate relevant caches
-  const pattern = `providers:*`;
-  const keys = await redis.keys(pattern);
-  if (keys.length > 0) {
-    await redis.del(...keys);
+  // 2. Check Redis cache
+  try {
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        ...JSON.parse(cachedData),
+        cached: true  // Indicate cache hit
+      });
+    }
+  } catch (redisError) {
+    console.error("Redis error:", redisError);
+    // Continue to MongoDB if Redis fails
   }
   
-  res.status(201).json({ success: true });
-});
+  // 3. Query MongoDB
+  const data = await NetworkData.find(filter).limit(5000);
+  
+  const response = {
+    success: true,
+    count: data.length,
+    data,
+    cached: false
+  };
+  
+  // 4. Save to Redis with 5-minute TTL
+  try {
+    await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(response));
+  } catch (redisError) {
+    console.error("Redis cache save error:", redisError);
+  }
+  
+  res.status(200).json(response);
+};
 ```
 
-**HTTP Caching**:
-```javascript
-// Set cache headers
-app.get('/api/v1/analytics/*', (req, res, next) => {
-  res.set('Cache-Control', 'public, max-age=300'); // 5 minutes
-  next();
-});
+**Cache Keys:**
+- `heatmap:{query_params}` - Detailed heatmap data
+- `heatmap:aggregated:{query_params}` - Geohash-clustered data
+- `best:{lat}:{lng}:{radius}` - Best provider queries
 
-// ETags for conditional requests
-app.use((req, res, next) => {
-  const etag = generateETag(res.body);
-  res.set('ETag', etag);
-  
-  if (req.header('If-None-Match') === etag) {
-    res.status(304).end();
-  } else {
-    next();
-  }
+**Performance Impact:**
+- Cache hit: ~5-20ms response time
+- Cache miss: ~200-1000ms (depends on query complexity)
+- **10-50x improvement for repeated queries**
+
+**Cache Behavior:**
+- TTL: 300 seconds (5 minutes)
+- Auto-expiration: Keys automatically deleted after TTL
+- Graceful degradation: App continues if Redis unavailable
+- No manual invalidation needed (TTL handles freshness)
+
+**Monitoring Cache Performance:**
+
+Check cache statistics in Redis:
+```bash
+# Connect to Redis CLI
+redis-cli
+
+# View all cache keys
+KEYS *
+
+# Check TTL for a key
+TTL 'heatmap:aggregated:{"provider":"MTN","precision":"5"}'
+
+# Get cache hit/miss stats
+INFO stats
+
+# Monitor cache operations in real-time
+MONITOR
+```
+
+**Cache Hit Ratio:**
+- Target: > 70% for production workloads
+- Depends on query diversity and user behavior
+- Higher ratios for popular locations/providers
 });
 ```
 

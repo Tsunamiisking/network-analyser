@@ -3,8 +3,8 @@
 ## Base URL
 
 ```
-Production: https://api.network-analyser.com/v1
-Development: http://localhost:3000/api/v1
+Production: https://api.network-analyser.com
+Development: http://localhost:3000
 ```
 
 ## Authentication
@@ -17,27 +17,26 @@ X-API-Key: <your-api-key>
 Authorization: Bearer <jwt-token>
 ```
 
+## Response Caching
+
+All GET endpoints support Redis caching with a 5-minute TTL. Cached responses include a `cached: true` field.
+
 ## Endpoints
 
-### 1. Measurements
+### 1. Network Data
 
-#### POST /measurements
+#### POST /api/networks
 
-Submit a new signal strength measurement.
+Submit a new network signal measurement.
 
 **Request Body:**
 ```json
 {
   "signalStrength": -75,
-  "latitude": 37.7749,
-  "longitude": -122.4194,
-  "provider": "Verizon",
-  "connectionType": "5G",
-  "timestamp": "2026-03-03T10:30:00Z",
-  "deviceInfo": {
-    "platform": "iOS",
-    "osVersion": "17.2"
-  }
+  "latitude": 6.5244,
+  "longitude": 3.3792,
+  "provider": "MTN",
+  "networkType": "5G"
 }
 ```
 
@@ -45,30 +44,213 @@ Submit a new signal strength measurement.
 ```json
 {
   "success": true,
-  "measurementId": "65f3a1b2c4d5e6f7a8b9c0d1",
-  "message": "Measurement recorded successfully"
+  "message": "Network data created successfully",
+  "data": {
+    "_id": "65f3a1b2c4d5e6f7a8b9c0d1",
+    "signalStrength": -75,
+    "provider": "MTN",
+    "networkType": "5G",
+    "location": {
+      "type": "Point",
+      "coordinates": [3.3792, 6.5244]
+    },
+    "geohash": "s0dxg1",
+    "timestamp": "2026-03-06T10:30:00Z"
+  }
 }
 ```
 
 **Validation Rules:**
-- `signalStrength`: Required, integer, range [-120, -20]
+- `signalStrength`: Required, number
 - `latitude`: Required, float, range [-90, 90]
 - `longitude`: Required, float, range [-180, 180]
-- `provider`: Required, string, max 50 chars
-- `connectionType`: Required, enum ["2G", "3G", "4G", "5G", "LTE"]
-- `timestamp`: Required, ISO 8601 format
+- `provider`: Required, string
+- `networkType`: Required, string (e.g., "3G", "4G", "5G")
+
+**Features:**
+- Automatically generates geohash (precision 6, ~1.2km) for efficient clustering
+- Stores location as GeoJSON Point for geospatial queries
+- Timestamp auto-generated if not provided
 
 ---
 
-#### POST /measurements/batch
+#### GET /api/networks/heatmap
 
-Submit multiple measurements in a single request.
+Retrieve detailed network measurements for heatmap visualization.
 
-**Request Body:**
+**Query Parameters:**
+- `provider`: Filter by provider (optional)
+- `startDate`: Start date ISO 8601 (optional)
+- `endDate`: End date ISO 8601 (optional)
+- `minLat`: Minimum latitude for bounding box (optional)
+- `maxLat`: Maximum latitude for bounding box (optional)
+- `minLng`: Minimum longitude for bounding box (optional)
+- `maxLng`: Maximum longitude for bounding box (optional)
+
+**Example Request:**
+```
+GET /api/networks/heatmap?provider=MTN&minLat=6.4&maxLat=6.7&minLng=3.2&maxLng=3.5
+```
+
+**Response:** `200 OK`
 ```json
 {
-  "measurements": [
+  "success": true,
+  "count": 2547,
+  "cached": false,
+  "data": [
     {
+      "_id": "65f3a1b2c4d5e6f7a8b9c0d1",
+      "signalStrength": -75,
+      "location": {
+        "type": "Point",
+        "coordinates": [3.3792, 6.5244]
+      },
+      "provider": "MTN",
+      "networkType": "5G",
+      "timestamp": "2026-03-06T10:30:00Z"
+    }
+    // ... more measurements (max 5000)
+  ]
+}
+```
+
+**Notes:**
+- Results limited to 5000 measurements for performance
+- Cached for 5 minutes
+- Use bounding box filters to reduce result size
+
+---
+
+#### GET /api/networks/heatmap/aggregated
+
+Retrieve geohash-clustered network data for efficient heatmap rendering.
+
+**Query Parameters:**
+- `provider`: Filter by provider (optional)
+- `startDate`: Start date ISO 8601 (optional)
+- `endDate`: End date ISO 8601 (optional)
+- `minLat`: Minimum latitude for bounding box (optional)
+- `maxLat`: Maximum latitude for bounding box (optional)
+- `minLng`: Minimum longitude for bounding box (optional)
+- `maxLng`: Maximum longitude for bounding box (optional)
+- `precision`: Geohash precision (default: 5, range: 4-6)
+  - 4 = ~20km boxes
+  - 5 = ~5km boxes
+  - 6 = ~1.2km boxes
+
+**Example Request:**
+```
+GET /api/networks/heatmap/aggregated?provider=MTN&precision=5&minLat=6.4&maxLat=6.7&minLng=3.2&maxLng=3.5
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "count": 42,
+  "precision": 5,
+  "cached": false,
+  "data": [
+    {
+      "geohash": "s0dxg",
+      "avgSignalStrength": -72.45,
+      "minSignalStrength": -95,
+      "maxSignalStrength": -52,
+      "count": 234,
+      "providers": ["MTN", "Airtel"],
+      "networkTypes": ["4G", "5G"],
+      "location": {
+        "type": "Point",
+        "coordinates": [3.3792, 6.5244]
+      }
+    }
+    // ... more clusters
+  ]
+}
+```
+
+**Benefits:**
+- Returns 50-100 clusters instead of thousands of points
+- Faster queries using geohash indexing
+- Better for visualization performance
+- Cached for 5 minutes
+
+---
+
+#### GET /api/networks/best
+
+Find the best network provider in a specific area using geospatial aggregation.
+
+**Query Parameters:**
+- `lat`: Latitude (required)
+- `lng`: Longitude (required)
+- `radius`: Search radius in meters (default: 2000, max: 50000)
+
+**Example Request:**
+```
+GET /api/networks/best?lat=6.5244&lng=3.3792&radius=2000
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "location": {
+    "type": "Point",
+    "coordinates": [3.3792, 6.5244]
+  },
+  "radius": 2000,
+  "cached": false,
+  "bestProvider": {
+    "provider": "MTN",
+    "avgSignalStrength": -65.23,
+    "minSignalStrength": -85,
+    "maxSignalStrength": -45,
+    "count": 147,
+    "avgDistance": 892.45,
+    "networkTypes": ["4G", "5G"]
+  },
+  "allProviders": [
+    {
+      "provider": "MTN",
+      "avgSignalStrength": -65.23,
+      "minSignalStrength": -85,
+      "maxSignalStrength": -45,
+      "count": 147,
+      "avgDistance": 892.45,
+      "networkTypes": ["4G", "5G"]
+    },
+    {
+      "provider": "Airtel",
+      "avgSignalStrength": -72.10,
+      "minSignalStrength": -92,
+      "maxSignalStrength": -58,
+      "count": 98,
+      "avgDistance": 1124.67,
+      "networkTypes": ["3G", "4G", "5G"]
+    }
+    // ... sorted by avgSignalStrength descending
+  ]
+}
+```
+
+**Use Cases:**
+- "Which provider is best at my location?"
+- Network recommendation systems
+- Coverage comparison analysis
+
+**Error Response:** `404 Not Found`
+```json
+{
+  "success": false,
+  "message": "No network data found within 2000m of the specified location"
+}
+```
+
+---
+
+### 2. Analytics
       "signalStrength": -75,
       "latitude": 37.7749,
       "longitude": -122.4194,

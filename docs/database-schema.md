@@ -2,13 +2,13 @@
 
 ## Overview
 
-The system uses MongoDB as the primary database, leveraging its geospatial indexing capabilities and flexible document model.
+The system uses MongoDB as the primary database, leveraging its geospatial indexing capabilities, geohash-based clustering, and flexible document model.
 
 ## Collections
 
-### 1. measurements
+### 1. networkdata
 
-Stores individual signal strength measurements from mobile clients.
+Stores individual network signal measurements from mobile clients.
 
 **Schema:**
 ```javascript
@@ -19,44 +19,37 @@ Stores individual signal strength measurements from mobile clients.
     type: "Point",
     coordinates: [Number, Number]  // [longitude, latitude]
   },
-  provider: String,            // Network provider name
-  connectionType: String,      // "2G", "3G", "4G", "5G", "LTE"
-  timestamp: Date,             // Measurement time
-  deviceInfo: {
-    platform: String,          // "iOS" or "Android"
-    osVersion: String,
-    appVersion: String
-  },
-  metadata: {
-    accuracy: Number,          // GPS accuracy in meters
-    altitude: Number,          // Optional
-    speed: Number,             // Optional
-    heading: Number            // Optional
-  },
-  submittedAt: Date,           // Server receipt time
-  ipAddress: String            // For abuse detection
+  geohash: String,             // 6-character geohash (~1.2km precision)
+  provider: String,            // Network provider name (e.g., "MTN", "Airtel")
+  networkType: String,         // "3G", "4G", "5G"
+  timestamp: Date              // Measurement time (auto-generated)
 }
 ```
 
 **Indexes:**
 ```javascript
 // Geospatial index for location queries
-db.measurements.createIndex({ location: "2dsphere" })
+db.networkdata.createIndex({ location: "2dsphere" })
 
-// Compound index for provider + time queries
-db.measurements.createIndex({ provider: 1, timestamp: -1 })
+// Geohash index for clustering queries
+db.networkdata.createIndex({ geohash: 1 })
+
+// Compound index for provider queries
+db.networkdata.createIndex({ provider: 1, timestamp: -1 })
 
 // Index for time-based queries and cleanup
-db.measurements.createIndex({ timestamp: -1 })
-
-// Compound index for provider + connection type stats
-db.measurements.createIndex({ provider: 1, connectionType: 1 })
+db.networkdata.createIndex({ timestamp: -1 })
 ```
 
+**Geohash Precision:**
+- Precision 6 = ~1.2km × 0.6km cells
+- Used for efficient clustering in aggregated heatmap queries
+- Generated automatically on data insertion
+
 **Data Retention:**
-- Raw data: 90 days
+- Raw data: 90 days (recommended)
 - Aggregated data: 2 years
-- Automatic TTL index for cleanup
+- Automatic TTL index for cleanup (optional)
 
 **Sample Document:**
 ```json
@@ -65,30 +58,18 @@ db.measurements.createIndex({ provider: 1, connectionType: 1 })
   "signalStrength": -75,
   "location": {
     "type": "Point",
-    "coordinates": [-122.4194, 37.7749]
+    "coordinates": [3.3792, 6.5244]
   },
-  "provider": "Verizon",
-  "connectionType": "5G",
-  "timestamp": ISODate("2026-03-03T10:30:00Z"),
-  "deviceInfo": {
-    "platform": "iOS",
-    "osVersion": "17.2",
-    "appVersion": "1.2.0"
-  },
-  "metadata": {
-    "accuracy": 15.5,
-    "altitude": 52.0
-  },
-  "submittedAt": ISODate("2026-03-03T10:30:05Z"),
-  "ipAddress": "203.0.113.42"
+  "geohash": "s0dxg1",
+  "provider": "MTN",
+  "networkType": "5G",
+  "timestamp": ISODate("2026-03-06T10:30:00Z")
 }
 ```
 
 ---
 
-### 2. outages
-
-Stores manual outage reports from users.
+### 2. reports
 
 **Schema:**
 ```javascript
