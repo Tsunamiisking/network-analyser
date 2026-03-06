@@ -494,3 +494,30 @@ exports.getDeadZones = async (req, res) => {
     });
   }
 };
+
+// GET /api/networks/history?deviceId=xxx&limit=50
+// Returns a single device's own telemetry history, most recent first.
+// Used by the mobile app "My Signal History" screen.
+exports.getMyHistory = async (req, res) => {
+  try {
+    const { deviceId, limit } = req.query;
+
+    if (!deviceId) {
+      return res.status(400).json({ success: false, message: "deviceId is required" });
+    }
+
+    const records = await NetworkData.find({ deviceId })
+      .select("signalStrength provider networkType connectivityFlag location timestamp")
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit) || 50);
+
+    res.status(200).json({
+      success: true,
+      count: records.length,
+      data: records,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
