@@ -43,13 +43,7 @@ export default function Layout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.card,
-        },
-        headerTintColor: COLORS.textPrimary,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerShown: false,
         tabBarStyle: {
           backgroundColor: COLORS.card,
           borderTopColor: COLORS.border,
