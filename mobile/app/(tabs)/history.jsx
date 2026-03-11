@@ -8,7 +8,7 @@ import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS } from '../../constants/them
 export default function History() {
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [limit, setLimit] = useState(20); // Default to showing last 20
+  const [limit, setLimit] = useState(5); // Default to showing last 5
   
   // Using mock data - will replace with API call later
   const allData = MOCK_SIGNAL_HISTORY.data;
@@ -25,7 +25,7 @@ export default function History() {
   
   // Load more data
   const loadMore = () => {
-    setLimit(prev => Math.min(prev + 20, allData.length));
+    setLimit(prev => Math.min(prev + 5, allData.length));
   };
   
   // Show all data
@@ -35,7 +35,7 @@ export default function History() {
   
   // Reset to default
   const showLess = () => {
-    setLimit(20);
+    setLimit(5);
   };
   
   // Empty state component
@@ -71,7 +71,7 @@ export default function History() {
           </TouchableOpacity>
         )}
         
-        {limit === allData.length && allData.length > 20 && (
+        {limit === allData.length && allData.length > 5 && (
           <TouchableOpacity 
             style={styles.filterButton}
             onPress={showLess}
@@ -83,12 +83,14 @@ export default function History() {
       </View>
       
       {/* Limit Info Badge */}
-      <View style={styles.limitBadge}>
-        <MaterialIcons name="access-time" size={14} color={COLORS.textMuted} />
-        <Text style={styles.limitBadgeText}>
-          Last {limit} records {hasMore && `• ${allData.length - limit} more available`}
-        </Text>
-      </View>
+      {hasMore && (
+        <View style={styles.limitBadge}>
+          <MaterialIcons name="access-time" size={14} color={COLORS.textMuted} />
+          <Text style={styles.limitBadgeText}>
+            {allData.length - limit} more record{allData.length - limit !== 1 ? 's' : ''} available
+          </Text>
+        </View>
+      )}
     </View>
   );
   
@@ -102,7 +104,7 @@ export default function History() {
         onPress={loadMore}
       >
         <MaterialIcons name="expand-more" size={24} color={COLORS.info} />
-        <Text style={styles.loadMoreText}>Load More (20)</Text>
+        <Text style={styles.loadMoreText}>Load More (5)</Text>
       </TouchableOpacity>
     );
   };
