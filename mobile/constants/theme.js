@@ -57,12 +57,17 @@ export const FONT_WEIGHTS = {
 };
 
 // FONT FAMILIES
-// Note: Update these after selecting your preferred font
 export const FONTS = {
-  regular: 'System',      // Replace with your chosen font
-  medium: 'System',
-  semibold: 'System',
-  bold: 'System',
+  // Headers & Titles (Poppins)
+  header: 'Poppins_700Bold',
+  headerSemibold: 'Poppins_600SemiBold',
+  headerMedium: 'Poppins_500Medium',
+  
+  // Body Text (Inter)
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
 };
 
 // SPACING
