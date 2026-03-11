@@ -17,6 +17,12 @@ export default function Layout() {
       }}
     >
       <Tabs.Screen
+        name="index"
+        options={{
+          href: null, // Hide from tabs
+        }}
+      />
+      <Tabs.Screen
         name="(tabs)/heatmap"
         options={{
           title: 'Heatmap',
