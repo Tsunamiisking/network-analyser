@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { COLORS } from '../constants/theme';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -43,14 +44,18 @@ export default function Layout() {
     <Tabs
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#2196F3',
+          backgroundColor: COLORS.card,
         },
-        headerTintColor: '#fff',
+        headerTintColor: COLORS.textPrimary,
         headerTitleStyle: {
           fontWeight: 'bold',
         },
-        tabBarActiveTintColor: '#2196F3',
-        tabBarInactiveTintColor: 'gray',
+        tabBarStyle: {
+          backgroundColor: COLORS.card,
+          borderTopColor: COLORS.border,
+        },
+        tabBarActiveTintColor: COLORS.info,
+        tabBarInactiveTintColor: COLORS.textMuted,
       }}
     >
       <Tabs.Screen
