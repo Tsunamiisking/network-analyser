@@ -20,6 +20,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3792, 6.5244] // [longitude, latitude] - Lagos
       },
+      locationName: "Victoria Island, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-12T10:30:00.000Z",
@@ -33,6 +34,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3850, 6.5200]
       },
+      locationName: "Lekki Phase 1, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-12T09:45:00.000Z",
@@ -46,6 +48,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3700, 6.5180]
       },
+      locationName: "Yaba, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-12T08:20:00.000Z",
@@ -59,6 +62,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3900, 6.5300]
       },
+      locationName: "Ikoyi, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-11T18:15:00.000Z",
@@ -72,6 +76,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3600, 6.5100]
       },
+      locationName: "Mushin, Lagos",
       connectivityFlag: false,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-11T16:30:00.000Z",
@@ -85,6 +90,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3750, 6.5250]
       },
+      locationName: "Lagos Island, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-11T14:00:00.000Z",
@@ -98,6 +104,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3820, 6.5220]
       },
+      locationName: "Surulere, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-11T11:45:00.000Z",
@@ -111,6 +118,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3880, 6.5280]
       },
+      locationName: "Ikoyi, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-10T22:10:00.000Z",
@@ -124,6 +132,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3650, 6.5150]
       },
+      locationName: "Ebute Metta, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-10T19:30:00.000Z",
@@ -137,6 +146,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3800, 6.5260]
       },
+      locationName: "Marina, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-10T15:20:00.000Z",
@@ -150,6 +160,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3920, 6.5310]
       },
+      locationName: "Banana Island, Lagos",
       connectivityFlag: true,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-10T12:00:00.000Z",
@@ -163,6 +174,7 @@ export const MOCK_SIGNAL_HISTORY = {
         type: "Point",
         coordinates: [3.3550, 6.5050]
       },
+      locationName: "Apapa, Lagos",
       connectivityFlag: false,
       deviceId: MOCK_DEVICE_ID,
       timestamp: "2026-03-10T08:45:00.000Z",
