@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
 import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, SHADOWS, getSignalColor, getSignalLabel } from '../constants/theme';
+import { reverseGeocodeWithCache, formatCoordinates } from '../utils/geocoding';
 
 /**
  * Signal History Card Component
@@ -9,6 +11,7 @@ import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, SHADOWS, getSignalColor, ge
 export default function SignalHistoryCard({ item }) {
   const signalColor = getSignalColor(item.signalStrength);
   const signalLabel = getSignalLabel(item.signalStrength);
+  const [locationText, setLocationText] = useState(item.locationName || 'Loading location...');
   
   // Format timestamp
   const date = new Date(item.timestamp);
@@ -22,9 +25,28 @@ export default function SignalHistoryCard({ item }) {
     minute: '2-digit',
   });
   
-  // Format location
-  const [longitude, latitude] = item.location.coordinates;
-  const locationText = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+  // Get location name
+  useEffect(() => {
+    const getLocation = async () => {
+      // Use cached locationName if available
+      if (item.locationName) {
+        setLocationText(item.locationName);
+        return;
+      }
+      
+      // Otherwise, reverse geocode
+      const [longitude, latitude] = item.location.coordinates;
+      try {
+        const location = await reverseGeocodeWithCache(latitude, longitude);
+        setLocationText(location);
+      } catch (error) {
+        // Fallback to coordinates
+        setLocationText(formatCoordinates(latitude, longitude));
+      }
+    };
+    
+    getLocation();
+  }, [item]);
 
   return (
     <View style={styles.card}>
