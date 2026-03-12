@@ -11,8 +11,20 @@ mongoose.connect(uri, { dbName });
 const providers = ["MTN", "Airtel", "Glo", "9mobile"];
 const networkTypes = ["3G", "4G", "5G"];
 
+// Lagos areas for generating realistic location names
+const lagosAreas = [
+  "Victoria Island", "Lekki", "Yaba", "Ikoyi", "Surulere", 
+  "Ikeja", "Ajah", "Marina", "Ebute Metta", "Mushin",
+  "Lagos Island", "Apapa", "Festac", "Maryland", "Gbagada",
+  "Obalende", "Banana Island", "Oshodi", "Isolo", "Ejigbo"
+];
+
 function randomBetween(min, max) {
   return Math.random() * (max - min) + min;
+}
+
+function getRandomArea() {
+  return lagosAreas[Math.floor(Math.random() * lagosAreas.length)] + ", Lagos";
 }
 
 async function generateData(count = 10000) {
@@ -33,11 +45,14 @@ async function generateData(count = 10000) {
 
     const geohash = ngeohash.encode(latitude, longitude, 6);
 
+    const locationName = getRandomArea();
+
     data.push({
       signalStrength,
       provider,
       networkType,
       geohash,
+      locationName,
       location: {
         type: "Point",
         coordinates: [longitude, latitude]

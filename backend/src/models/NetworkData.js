@@ -14,6 +14,13 @@ const NetworkDataSchema = new mongoose.Schema({
     coordinates: [Number]
   },
 
+  // Human-readable location name (e.g., "Victoria Island, Lagos")
+  // Populated via reverse geocoding to avoid repeated API calls in mobile app
+  locationName: {
+    type: String,
+    default: null
+  },
+
   geohash: String,
 
   // Granular RF metrics (populated by Android passive sensing engine)
