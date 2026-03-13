@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   },
   
   label: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.headerSemibold,
     fontSize: FONT_SIZES.body,
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
