@@ -1,30 +1,319 @@
-import { View, Text, StyleSheet } from 'react-native';
-import React from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TextInput, 
+  TouchableOpacity,
+  Alert,
+  KeyboardAvoidingView,
+  Platform
+} from 'react-native';
+import { useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
+import PageHeader from '../../components/PageHeader';
+import CustomPicker from '../../components/CustomPicker';
+import RadioButtonGroup from '../../components/RadioButtonGroup';
+import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS } from '../../constants/theme';
+
+const PROVIDER_OPTIONS = [
+  { label: 'MTN', value: 'MTN' },
+  { label: 'Airtel', value: 'Airtel' },
+  { label: 'Glo', value: 'Glo' },
+  { label: '9mobile', value: '9mobile' },
+];
+
+const ISSUE_TYPE_OPTIONS = [
+  { 
+    label: 'No Signal', 
+    value: 'NO_SIGNAL',
+    icon: 'signal-cellular-off',
+    description: 'Device shows no network bars'
+  },
+  { 
+    label: 'No Internet', 
+    value: 'NO_INTERNET',
+    icon: 'cloud-off',
+    description: 'Connected but no data access'
+  },
+  { 
+    label: 'Slow Internet', 
+    value: 'SLOW_INTERNET',
+    icon: 'network-check',
+    description: 'Very slow data speeds'
+  },
+];
 
 export default function Report() {
+  const [provider, setProvider] = useState('');
+  const [issueType, setIssueType] = useState('');
+  const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const handleSubmit = async () => {
+    // Validation
+    if (!provider) {
+      Alert.alert('Missing Field', 'Please select a network provider');
+      return;
+    }
+    
+    if (!issueType) {
+      Alert.alert('Missing Field', 'Please select an issue type');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    // TODO: Replace with actual API call
+    // const reportData = {
+    //   provider,
+    //   issueType,
+    //   description: description.trim(),
+    //   timestamp: new Date().toISOString(),
+    //   location: await getCurrentLocation(),
+    // };
+    // await submitOutageReport(reportData);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setIsSubmitting(false);
+      Alert.alert(
+        'Report Submitted',
+        'Thank you for reporting this network issue. We will investigate.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Reset form
+              setProvider('');
+              setIssueType('');
+              setDescription('');
+            }
+          }
+        ]
+      );
+    }, 1500);
+  };
+  
+  const isFormValid = provider && issueType;
+  
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Report Network Issue</Text>
-      <Text style={styles.subtitle}>Submit connectivity problems</Text>
-    </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <PageHeader title="Report Outage" />
+      
+      <KeyboardAvoidingView 
+        style={styles.keyboardView}
+        behavior={'padding'}
+        // keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header Info */}
+          <View style={styles.headerInfo}>
+            <MaterialIcons name="report-problem" size={48} color={COLORS.warning} />
+            <Text style={styles.headerTitle}>Report Network Issue</Text>
+            <Text style={styles.headerSubtitle}>
+              Help us identify and resolve connectivity problems in your area
+            </Text>
+          </View>
+          
+          {/* Form */}
+          <View style={styles.form}>
+            {/* Provider Dropdown */}
+            <CustomPicker
+              label="Network Provider"
+              placeholder="Select your provider"
+              value={provider}
+              options={PROVIDER_OPTIONS}
+              onSelect={setProvider}
+            />
+            
+            {/* Issue Type Radio Buttons */}
+            <RadioButtonGroup
+              label="Issue Type"
+              options={ISSUE_TYPE_OPTIONS}
+              value={issueType}
+              onChange={setIssueType}
+            />
+            
+            {/* Description Text Area */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Additional Details (Optional)</Text>
+              <TextInput
+                style={styles.textArea}
+                placeholder="Describe the issue you're experiencing..."
+                placeholderTextColor={COLORS.textMuted}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                value={description}
+                onChangeText={setDescription}
+                maxLength={500}
+              />
+              <Text style={styles.charCount}>
+                {description.length}/500
+              </Text>
+            </View>
+            
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                !isFormValid && styles.submitButtonDisabled,
+                isSubmitting && styles.submitButtonSubmitting
+              ]}
+              onPress={handleSubmit}
+              disabled={!isFormValid || isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <MaterialIcons name="hourglass-empty" size={20} color={COLORS.textPrimary} />
+                  <Text style={styles.submitButtonText}>Submitting...</Text>
+                </>
+              ) : (
+                <>
+                  <MaterialIcons name="send" size={20} color={COLORS.textPrimary} />
+                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            
+            {/* Info Note */}
+            <View style={styles.infoNote}>
+              <MaterialIcons name="info-outline" size={16} color={COLORS.info} />
+              <Text style={styles.infoNoteText}>
+                Your location will be automatically included to help us map network issues
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
+  },
+  
+  keyboardView: {
+    flex: 1,
+  },
+  
+  scrollView: {
+    flex: 1,
+  },
+  
+  scrollContent: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.xl,
+  },
+  
+  headerInfo: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+  },
+  
+  headerTitle: {
+    fontFamily: FONTS.header,
+    fontSize: FONT_SIZES.header,
+    color: COLORS.textPrimary,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  
+  headerSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  
+  form: {
+    marginTop: SPACING.md,
+  },
+  
+  inputContainer: {
+    marginBottom: SPACING.sm,
+  },
+  
+  label: {
+    fontFamily: FONTS.medium,
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+  },
+  
+  textArea: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textPrimary,
+    minHeight: 100,
+  },
+  
+  charCount: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
+    textAlign: 'right',
+    marginTop: SPACING.sm,
+  },
+  
+  submitButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    gap: SPACING.sm,
+    backgroundColor: COLORS.info,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.md,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  
+  submitButtonDisabled: {
+    backgroundColor: COLORS.border,
+    opacity: 0.5,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
+  
+  submitButtonSubmitting: {
+    backgroundColor: COLORS.textMuted,
+  },
+  
+  submitButtonText: {
+    fontFamily: FONTS.semibold,
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textPrimary,
+  },
+  
+  infoNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.card,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.info,
+  },
+  
+  infoNoteText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
 });
