@@ -70,7 +70,6 @@ export default function History() {
     <View style={styles.header}>
       <View style={styles.headerTop}>
         <View>
-          <Text style={styles.headerTitle}>My Signal History</Text>
           <Text style={styles.headerSubtitle}>
             Showing {historyData.length} of {allData.length} measurement
             {allData.length !== 1 ? "s" : ""}
@@ -201,13 +200,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: SPACING.sm,
-  },
-
-  headerTitle: {
-    fontFamily: FONTS.header,
-    fontSize: FONT_SIZES.title,
-    color: COLORS.textPrimary,
-    marginBottom: 4,
   },
 
   headerSubtitle: {
