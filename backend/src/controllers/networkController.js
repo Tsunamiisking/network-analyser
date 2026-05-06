@@ -210,7 +210,8 @@ exports.getAggregatedHeatmapData = async (req, res) => {
       {
         $group: {
           _id: { $substr: ["$geohash", 0, geohashPrecision] },
-          avgSignalStrength: { $avg: "$signalStrength" },
+          // Collect all signal strength values for median calculation
+          signalStrengths: { $push: "$signalStrength" },
           minSignalStrength: { $min: "$signalStrength" },
           maxSignalStrength: { $max: "$signalStrength" },
           count: { $sum: 1 },
@@ -222,9 +223,50 @@ exports.getAggregatedHeatmapData = async (req, res) => {
         $project: {
           _id: 0,
           geohash: "$_id",
-          avgSignalStrength: { $round: ["$avgSignalStrength", 2] },
+          // Sort array and calculate median (middle value)
+          medianSignalStrength: {
+            $let: {
+              vars: {
+                sortedSignals: { $sortArray: { input: "$signalStrengths", sortBy: 1 } },
+                len: { $size: "$signalStrengths" }
+              },
+              in: {
+                $cond: {
+                  // If odd length, take middle element
+                  if: { $eq: [{ $mod: ["$$len", 2] }, 1] },
+                  then: {
+                    $arrayElemAt: [
+                      "$$sortedSignals",
+                      { $floor: { $divide: ["$$len", 2] } }
+                    ]
+                  },
+                  // If even length, average the two middle elements
+                  else: {
+                    $avg: [
+                      { $arrayElemAt: ["$$sortedSignals", { $subtract: [{ $divide: ["$$len", 2] }, 1] }] },
+                      { $arrayElemAt: ["$$sortedSignals", { $divide: ["$$len", 2] }] }
+                    ]
+                  }
+                }
+              }
+            }
+          },
           minSignalStrength: 1,
           maxSignalStrength: 1,
+          count: 1,
+          providers: 1,
+          networkTypes: 1,
+          // Calculate signal variance (max - min) for data quality indicator
+          signalVariance: { $subtract: ["$maxSignalStrength", "$minSignalStrength"] }
+        },
+      },
+      {
+        $project: {
+          geohash: 1,
+          medianSignalStrength: { $round: ["$medianSignalStrength", 2] },
+          minSignalStrength: 1,
+          maxSignalStrength: 1,
+          signalVariance: 1,
           count: 1,
           providers: 1,
           networkTypes: 1,

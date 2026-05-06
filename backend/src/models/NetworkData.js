@@ -43,5 +43,6 @@ NetworkDataSchema.index({ location: "2dsphere" });
 NetworkDataSchema.index({ geohash: 1 });
 NetworkDataSchema.index({ deviceId: 1, timestamp: -1 }); // For deduplication queries
 NetworkDataSchema.index({ connectivityFlag: 1 }); // For dead zone queries
+NetworkDataSchema.index({ provider: 1, geohash: 1, timestamp: -1 }); // For aggregated heatmap queries
 
 module.exports = mongoose.model("NetworkData", NetworkDataSchema);
