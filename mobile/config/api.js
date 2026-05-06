@@ -1,17 +1,19 @@
 // API Configuration
 // Update this URL based on your environment
 
-// For iOS Simulator
+// For iOS Simulator (use localhost)
 // export const API_BASE_URL = 'http://localhost:3000/api';
 
-// For Android Emulator
+// For Android Emulator (use special Android IP)
 // export const API_BASE_URL = 'http://10.0.2.2:3000/api';
 
-// For Physical Device (replace with your computer's IP)
-// export const API_BASE_URL = 'http://192.168.1.100:3000/api';
+// For Physical Device or Expo Go (replace with your computer's actual IP)
+// Run this command to find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1
+// macOS: System Settings > Network > Wi-Fi > Details > TCP/IP > IPv4 Address
+export const API_BASE_URL = 'http://192.168.1.146:3000/api';
 
-// For Expo Go (replace with your computer's IP)
-export const API_BASE_URL = 'http://192.168.1.100:3000/api';
+// Development helper: Test with localhost first if you're having connection issues
+// export const API_BASE_URL = 'http://localhost:3000/api';
 
 // Endpoints
 export const ENDPOINTS = {
