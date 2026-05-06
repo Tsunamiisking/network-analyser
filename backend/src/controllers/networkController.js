@@ -223,34 +223,7 @@ exports.getAggregatedHeatmapData = async (req, res) => {
         $project: {
           _id: 0,
           geohash: "$_id",
-          // Sort array and calculate median (middle value)
-          medianSignalStrength: {
-            $let: {
-              vars: {
-                sortedSignals: { $sortArray: { input: "$signalStrengths", sortBy: 1 } },
-                len: { $size: "$signalStrengths" }
-              },
-              in: {
-                $cond: {
-                  // If odd length, take middle element
-                  if: { $eq: [{ $mod: ["$$len", 2] }, 1] },
-                  then: {
-                    $arrayElemAt: [
-                      "$$sortedSignals",
-                      { $floor: { $divide: ["$$len", 2] } }
-                    ]
-                  },
-                  // If even length, average the two middle elements
-                  else: {
-                    $avg: [
-                      { $arrayElemAt: ["$$sortedSignals", { $subtract: [{ $divide: ["$$len", 2] }, 1] }] },
-                      { $arrayElemAt: ["$$sortedSignals", { $divide: ["$$len", 2] }] }
-                    ]
-                  }
-                }
-              }
-            }
-          },
+          signalStrengths: 1,
           minSignalStrength: 1,
           maxSignalStrength: 1,
           count: 1,
@@ -260,28 +233,28 @@ exports.getAggregatedHeatmapData = async (req, res) => {
           signalVariance: { $subtract: ["$maxSignalStrength", "$minSignalStrength"] }
         },
       },
-      {
-        $project: {
-          geohash: 1,
-          medianSignalStrength: { $round: ["$medianSignalStrength", 2] },
-          minSignalStrength: 1,
-          maxSignalStrength: 1,
-          signalVariance: 1,
-          count: 1,
-          providers: 1,
-          networkTypes: 1,
-        },
-      },
       { $sort: { count: -1 } },
     ];
 
     const data = await NetworkData.aggregate(pipeline);
 
-    // Decode geohash to get center coordinates for each cluster
+    // Calculate median in JavaScript (more reliable than MongoDB aggregation)
     const enrichedData = data.map((item) => {
+      // Calculate median from sorted array
+      const sorted = item.signalStrengths.sort((a, b) => a - b);
+      const len = sorted.length;
+      const medianSignalStrength = len % 2 === 0
+        ? (sorted[len / 2 - 1] + sorted[len / 2]) / 2  // Even: average of two middle values
+        : sorted[Math.floor(len / 2)];                  // Odd: middle value
+      
       const decoded = ngeohash.decode(item.geohash);
+      
+      // Remove signalStrengths array from response (not needed by frontend)
+      delete item.signalStrengths;
+      
       return {
         ...item,
+        medianSignalStrength: Math.round(medianSignalStrength * 100) / 100,
         location: {
           type: "Point",
           coordinates: [decoded.longitude, decoded.latitude],
