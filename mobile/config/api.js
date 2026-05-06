@@ -24,6 +24,11 @@ export const ENDPOINTS = {
   REPORTS: '/reports',
   PROVIDER_COMPARISON: '/analytics/provider-comparison',
   BLACKOUT_RATE: '/analytics/blackout-rate',
+  // DBSCAN Clustering endpoints
+  CLUSTERING_DEADZONES: '/clustering/deadzones',
+  CLUSTERING_SIGNAL_QUALITY: '/clustering/signal-quality',
+  CLUSTERING_PROVIDER: '/clustering/provider',
+  CLUSTERING_ANOMALIES: '/clustering/anomalies',
 };
 
 // Nigerian Mobile Providers
@@ -38,4 +43,32 @@ export const NIGERIA_BOUNDS = {
   maxLat: 14.0,
   minLng: 2.6,
   maxLng: 15.0,
+};
+
+// Signal Quality Levels for clustering
+export const SIGNAL_QUALITY_LEVELS = {
+  EXCELLENT: 'excellent',  // -70 to 0 dBm
+  GOOD: 'good',            // -85 to -70 dBm
+  FAIR: 'fair',            // -100 to -85 dBm
+  POOR: 'poor',            // -110 to -100 dBm
+  VERY_POOR: 'very_poor',  // < -110 dBm
+};
+
+// Default DBSCAN parameters
+export const DBSCAN_DEFAULTS = {
+  // Dead zones
+  DEAD_ZONE_EPSILON: 800,      // 800m radius
+  DEAD_ZONE_MIN_POINTS: 3,     // Min 3 points
+  
+  // Signal quality
+  QUALITY_EPSILON: 1000,        // 1000m radius
+  QUALITY_MIN_POINTS: 5,        // Min 5 points
+  
+  // Provider analysis
+  PROVIDER_EPSILON: 800,        // 800m radius
+  PROVIDER_MIN_POINTS: 5,       // Min 5 points
+  
+  // Anomaly detection
+  ANOMALY_EPSILON: 1000,        // 1000m radius
+  ANOMALY_MIN_POINTS: 5,        // Min 5 points
 };

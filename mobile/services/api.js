@@ -81,3 +81,50 @@ export const getBlackoutRate = async (startDate, endDate) => {
   const params = startDate && endDate ? `?startDate=${startDate}&endDate=${endDate}` : '';
   return apiFetch(`${ENDPOINTS.BLACKOUT_RATE}${params}`);
 };
+
+// ============================================
+// DBSCAN Clustering APIs
+// ============================================
+
+/**
+ * Get dead zone clusters using DBSCAN
+ * @param {Object} filters - { provider, startDate, endDate, minLat, maxLat, minLng, maxLng, epsilon, minPoints }
+ */
+export const getDeadZoneClusters = async (filters = {}) => {
+  const queryParams = new URLSearchParams(filters).toString();
+  const endpoint = queryParams ? `${ENDPOINTS.CLUSTERING_DEADZONES}?${queryParams}` : ENDPOINTS.CLUSTERING_DEADZONES;
+  return apiFetch(endpoint);
+};
+
+/**
+ * Get signal quality clusters using DBSCAN
+ * @param {Object} filters - { qualityLevel, provider, startDate, endDate, minLat, maxLat, minLng, maxLng, epsilon, minPoints }
+ */
+export const getSignalQualityClusters = async (filters = {}) => {
+  const queryParams = new URLSearchParams(filters).toString();
+  const endpoint = queryParams ? `${ENDPOINTS.CLUSTERING_SIGNAL_QUALITY}?${queryParams}` : ENDPOINTS.CLUSTERING_SIGNAL_QUALITY;
+  return apiFetch(endpoint);
+};
+
+/**
+ * Get provider-specific coverage clusters
+ * @param {String} provider - MTN, Airtel, Glo, or 9mobile
+ * @param {Object} filters - { startDate, endDate, minLat, maxLat, minLng, maxLng, epsilon, minPoints }
+ */
+export const getProviderClusters = async (provider, filters = {}) => {
+  const queryParams = new URLSearchParams(filters).toString();
+  const endpoint = queryParams 
+    ? `${ENDPOINTS.CLUSTERING_PROVIDER}/${provider}?${queryParams}` 
+    : `${ENDPOINTS.CLUSTERING_PROVIDER}/${provider}`;
+  return apiFetch(endpoint);
+};
+
+/**
+ * Get anomalies/outliers using DBSCAN
+ * @param {Object} filters - { provider, startDate, endDate, minLat, maxLat, minLng, maxLng, epsilon, minPoints }
+ */
+export const getAnomalies = async (filters = {}) => {
+  const queryParams = new URLSearchParams(filters).toString();
+  const endpoint = queryParams ? `${ENDPOINTS.CLUSTERING_ANOMALIES}?${queryParams}` : ENDPOINTS.CLUSTERING_ANOMALIES;
+  return apiFetch(endpoint);
+};
