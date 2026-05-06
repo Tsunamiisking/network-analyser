@@ -36,7 +36,7 @@ export const checkAPIHealth = async () => {
 
 // Generic fetch wrapper with timeout and retry
 const apiFetch = async (endpoint, options = {}) => {
-  const { timeout = 15000, retries = 2, ...fetchOptions } = options;
+  const { timeout = 15000, retries = 2, allowedStatuses = [], ...fetchOptions } = options;
   
   // Create abort controller for timeout
   const controller = new AbortController();
@@ -61,12 +61,13 @@ const apiFetch = async (endpoint, options = {}) => {
 
       const data = await response.json();
 
-      if (!response.ok) {
+      // Check if status is explicitly allowed (e.g., 404 for "no data found")
+      if (!response.ok && !allowedStatuses.includes(response.status)) {
         throw new Error(data.message || `API request failed with status ${response.status}`);
       }
 
       console.log(`✅ API Success: ${endpoint}`);
-      return data;
+      return { ...data, statusCode: response.status };
       
     } catch (error) {
       clearTimeout(timeoutId);
@@ -132,7 +133,10 @@ export const getAggregatedHeatmap = async (filters = {}) => {
 
 // Get best network at location
 export const getBestNetwork = async (lat, lng, radius = 2000) => {
-  return apiFetch(`${ENDPOINTS.BEST_NETWORK}?lat=${lat}&lng=${lng}&radius=${radius}`);
+  // Allow 404 status - it just means "no data available"
+  return apiFetch(`${ENDPOINTS.BEST_NETWORK}?lat=${lat}&lng=${lng}&radius=${radius}`, {
+    allowedStatuses: [404]
+  });
 };
 
 // Get device history
