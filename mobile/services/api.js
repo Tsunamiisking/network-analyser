@@ -118,16 +118,16 @@ export const submitNetworkData = async (networkData) => {
 
 // Get heatmap data
 export const getHeatmapData = async (filters = {}) => {
-  const queryParams = new URLSearchParams(filters).toString();
+  const queryParams = new URLSearchParams(cleanFilters(filters)).toString();
   const endpoint = queryParams ? `${ENDPOINTS.HEATMAP}?${queryParams}` : ENDPOINTS.HEATMAP;
   return apiFetch(endpoint);
 };
 
 // Get aggregated heatmap data
 export const getAggregatedHeatmap = async (filters = {}) => {
-  const queryParams = new URLSearchParams(filters).toString();
+  const queryParams = new URLSearchParams(cleanFilters(filters)).toString();
   const endpoint = queryParams ? `${ENDPOINTS.HEATMAP_AGGREGATED}?${queryParams}` : ENDPOINTS.HEATMAP_AGGREGATED;
-  return apiFetch(endpoint, { timeout: 20000 }); // 20s timeout for aggregation
+  return apiFetch(endpoint, { timeout: 45000 }); // 45s timeout for aggregation
 };
 
 // Get best network at location
@@ -175,7 +175,7 @@ export const getBlackoutRate = async (startDate, endDate) => {
  * @param {Object} filters - { provider, startDate, endDate, minLat, maxLat, minLng, maxLng, epsilon, minPoints }
  */
 export const getDeadZoneClusters = async (filters = {}) => {
-  const queryParams = new URLSearchParams(filters).toString();
+  const queryParams = new URLSearchParams(cleanFilters(filters)).toString();
   const endpoint = queryParams ? `${ENDPOINTS.CLUSTERING_DEADZONES}?${queryParams}` : ENDPOINTS.CLUSTERING_DEADZONES;
   return apiFetch(endpoint, { timeout: 30000 }); // 30s timeout for DBSCAN
 };
@@ -185,7 +185,7 @@ export const getDeadZoneClusters = async (filters = {}) => {
  * @param {Object} filters - { qualityLevel, provider, startDate, endDate, minLat, maxLat, minLng, maxLng, epsilon, minPoints }
  */
 export const getSignalQualityClusters = async (filters = {}) => {
-  const queryParams = new URLSearchParams(filters).toString();
+  const queryParams = new URLSearchParams(cleanFilters(filters)).toString();
   const endpoint = queryParams ? `${ENDPOINTS.CLUSTERING_SIGNAL_QUALITY}?${queryParams}` : ENDPOINTS.CLUSTERING_SIGNAL_QUALITY;
   return apiFetch(endpoint, { timeout: 30000 }); // 30s timeout for DBSCAN
 };

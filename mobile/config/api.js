@@ -10,7 +10,7 @@
 // For Physical Device or Expo Go (replace with your computer's actual IP)
 // Run this command to find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1
 // macOS: System Settings > Network > Wi-Fi > Details > TCP/IP > IPv4 Address
-export const API_BASE_URL = 'http://192.168.1.146:3000/api';
+export const API_BASE_URL = 'http://192.168.1.100:3000/api';
 
 // Development helper: Test with localhost first if you're having connection issues
 // export const API_BASE_URL = 'http://localhost:3000/api';
