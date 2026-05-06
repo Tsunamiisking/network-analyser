@@ -102,7 +102,10 @@ export default function Heatmap() {
       }
 
       setClusters(data);
-      console.log(`✅ Loaded ${data.length} ${mode} clusters`);
+      // console.log(`✅ Loaded ${data.length} ${mode} items`);
+      if (data.length > 0) {
+        // console.log('Sample data structure:', JSON.stringify(data[0], null, 2));
+      }
     } catch (error) {
       console.error('Failed to load map data:', error);
       Alert.alert('Error', 'Failed to load map data. Please try again.');
@@ -114,13 +117,26 @@ export default function Heatmap() {
 
   const renderHeatmapCircles = () => {
     return clusters.map((cluster, index) => {
-      const color = getSignalColor(cluster.avgSignalStrength);
+      // Extract coordinates with fallbacks
+      const lat = cluster.centroid?.lat || cluster.location?.coordinates?.[1];
+      const lng = cluster.centroid?.lng || cluster.location?.coordinates?.[0];
+      
+      // Skip if no valid coordinates
+      if (!lat || !lng) {
+        console.warn('Cluster missing coordinates:', cluster);
+        return null;
+      }
+      
+      // Use median signal strength for more accurate representation
+      const signalStrength = cluster.medianSignalStrength ?? cluster.avgSignalStrength;
+      const color = getSignalColor(signalStrength);
+      
       return (
         <Circle
           key={`heatmap-${index}`}
           center={{
-            latitude: cluster.centroid?.lat || cluster.location?.coordinates[1],
-            longitude: cluster.centroid?.lng || cluster.location?.coordinates[0],
+            latitude: lat,
+            longitude: lng,
           }}
           radius={600}
           fillColor={color + '66'} // Add transparency
@@ -128,12 +144,20 @@ export default function Heatmap() {
           strokeWidth={1}
         />
       );
-    });
+    }).filter(Boolean);
   };
 
   const renderDeadZonePolygons = () => {
     return clusters.map((cluster) => {
-      if (!cluster.boundingBox) return null;
+      // Validate bounding box exists
+      if (!cluster.boundingBox || 
+          !cluster.boundingBox.minLat || 
+          !cluster.boundingBox.maxLat || 
+          !cluster.boundingBox.minLng || 
+          !cluster.boundingBox.maxLng) {
+        console.warn('Dead zone cluster missing bounding box:', cluster);
+        return null;
+      }
       
       const coords = [
         { 
@@ -163,11 +187,17 @@ export default function Heatmap() {
           strokeWidth={2}
         />
       );
-    });
+    }).filter(Boolean);
   };
 
   const renderQualityClusters = () => {
     return clusters.map((cluster) => {
+      // Safety check for centroid
+      if (!cluster.centroid || !cluster.centroid.lat || !cluster.centroid.lng) {
+        console.warn('Cluster missing centroid:', cluster);
+        return null;
+      }
+      
       const color = getSignalColor(cluster.metrics?.avgSignalStrength || -100);
       return (
         <Circle
@@ -182,7 +212,7 @@ export default function Heatmap() {
           strokeWidth={2}
         />
       );
-    });
+    }).filter(Boolean); // Remove null entries
   };
 
   const getQualityColor = (level) => {
@@ -245,6 +275,13 @@ export default function Heatmap() {
       {showControls && (
         <View style={styles.controlPanel}>
           <Text style={styles.controlTitle}>Visualization Mode</Text>
+          
+          {/* Mode Description */}
+          <Text style={styles.modeDescription}>
+            {mode === MODES.HEATMAP && '📊 Typical signal strength per area (median value)'}
+            {mode === MODES.DEAD_ZONES && '⚠️ Areas with no connectivity detected'}
+            {mode === MODES.QUALITY && '🎯 Filter by specific signal quality levels'}
+          </Text>
           
           {/* Mode Selector */}
           <View style={styles.modeSelector}>
@@ -395,23 +432,83 @@ export default function Heatmap() {
             style={styles.legendHeader}
             onPress={() => setShowLegend(false)}
           >
-            <Text style={styles.legendTitle}>Legend</Text>
+            <Text style={styles.legendTitle}>
+              {mode === MODES.HEATMAP && 'Signal Strength Guide'}
+              {mode === MODES.DEAD_ZONES && 'Dead Zone Areas'}
+              {mode === MODES.QUALITY && 'Quality Clusters'}
+            </Text>
             <MaterialIcons name="close" size={18} color={COLORS.textSecondary} />
           </TouchableOpacity>
           
+          {/* Mode-specific descriptions */}
+          <Text style={styles.legendDescription}>
+            {mode === MODES.HEATMAP && 'Shows typical user experience per 1.2km area (median signal, not average)'}
+            {mode === MODES.DEAD_ZONES && 'Red zones indicate areas with frequent connection failures'}
+            {mode === MODES.QUALITY && `Showing only "${qualityLevel}" quality areas using AI clustering`}
+          </Text>
+          
           <View style={styles.legendItems}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.strong }]} />
-              <Text style={styles.legendText}>Excellent (&gt; -70 dBm)</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.moderate }]} />
-              <Text style={styles.legendText}>Fair (-85 to -100 dBm)</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.veryWeak }]} />
-              <Text style={styles.legendText}>Poor (&lt; -110 dBm)</Text>
-            </View>
+            {mode === MODES.HEATMAP && (
+              <>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.strong }]} />
+                  <Text style={styles.legendText}>Excellent Signal</Text>
+                  <Text style={styles.legendSubtext}>-70 dBm or stronger</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: '#84cc16' }]} />
+                  <Text style={styles.legendText}>Good Signal</Text>
+                  <Text style={styles.legendSubtext}>-70 to -85 dBm</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.moderate }]} />
+                  <Text style={styles.legendText}>Fair Signal</Text>
+                  <Text style={styles.legendSubtext}>-85 to -100 dBm</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.weak }]} />
+                  <Text style={styles.legendText}>Poor Signal</Text>
+                  <Text style={styles.legendSubtext}>-100 to -110 dBm</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.veryWeak }]} />
+                  <Text style={styles.legendText}>Very Poor Signal</Text>
+                  <Text style={styles.legendSubtext}>Below -110 dBm</Text>
+                </View>
+              </>
+            )}
+            
+            {mode === MODES.DEAD_ZONES && (
+              <>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: 'rgba(239, 68, 68, 0.6)' }]} />
+                  <Text style={styles.legendText}>Dead Zone</Text>
+                  <Text style={styles.legendSubtext}>No connectivity detected</Text>
+                </View>
+                <View style={styles.legendNote}>
+                  <MaterialIcons name="info-outline" size={14} color={COLORS.textMuted} />
+                  <Text style={styles.legendNoteText}>
+                    Larger zones indicate more severe coverage issues
+                  </Text>
+                </View>
+              </>
+            )}
+            
+            {mode === MODES.QUALITY && (
+              <>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: getQualityColor(qualityLevel) }]} />
+                  <Text style={styles.legendText}>{qualityLevel.toUpperCase().replace('_', ' ')} Quality</Text>
+                  <Text style={styles.legendSubtext}>Clustered areas detected</Text>
+                </View>
+                <View style={styles.legendNote}>
+                  <MaterialIcons name="info-outline" size={14} color={COLORS.textMuted} />
+                  <Text style={styles.legendNoteText}>
+                    Change quality level above to see different signal zones
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
       )}
@@ -569,6 +666,13 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
   },
+  modeDescription: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.sm,
+    fontStyle: 'italic',
+  },
   controlSubtitle: {
     fontFamily: FONTS.medium,
     fontSize: FONT_SIZES.body,
@@ -697,6 +801,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
+    flexWrap: 'wrap',
   },
   legendColor: {
     width: 16,
@@ -707,6 +812,35 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: FONT_SIZES.small,
     color: COLORS.textSecondary,
+  },
+  legendSubtext: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginLeft: 'auto',
+  },
+  legendDescription: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.sm,
+    fontStyle: 'italic',
+  },
+  legendNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.xs,
+    marginTop: SPACING.xs,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  legendNoteText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    lineHeight: 16,
   },
   refreshButton: {
     position: 'absolute',
