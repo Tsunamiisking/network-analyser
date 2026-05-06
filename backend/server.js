@@ -17,6 +17,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
+// Custom request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`\n📨 [${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  console.log(`   Query: ${JSON.stringify(req.query)}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log(`   Body: ${JSON.stringify(req.body).substring(0, 200)}`);
+  }
+  
+  // Log response on finish
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`✅ [${req.method} ${req.originalUrl}] ${res.statusCode} - ${duration}ms`);
+  });
+  
+  next();
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 

@@ -14,6 +14,13 @@ async function connectDB() {
   try {
     await mongoose.connect(uri, {
       dbName: process.env.DB_NAME || 'network-analyser-db',
+      // Connection pool settings
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      // Timeout settings to prevent premature disconnects
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 30000,
+      heartbeatFrequencyMS: 10000,
     });
     
     console.log("✅ Successfully connected to MongoDB with Mongoose!");
@@ -24,7 +31,12 @@ async function connectDB() {
     });
     
     mongoose.connection.on('disconnected', () => {
-      console.log('MongoDB disconnected');
+      console.warn('⚠️  MongoDB disconnected - attempting to reconnect...');
+      // Mongoose automatically reconnects, just log the event
+    });
+    
+    mongoose.connection.on('reconnected', () => {
+      console.log('✅ MongoDB reconnected successfully!');
     });
     
     return mongoose.connection;
