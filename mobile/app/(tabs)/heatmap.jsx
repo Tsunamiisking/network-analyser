@@ -63,13 +63,14 @@ export default function Heatmap() {
     setLoading(true);
     try {
       let data = [];
-      const filters = {
-        provider: provider === 'All' ? undefined : provider,
-        minLat: 6.3,
-        maxLat: 6.8,
-        minLng: 3.1,
-        maxLng: 3.6,
-      };
+      
+      // Build filters, removing undefined values
+      const filters = {};
+      if (provider !== 'All') filters.provider = provider;
+      filters.minLat = 6.3;
+      filters.maxLat = 6.8;
+      filters.minLng = 3.1;
+      filters.maxLng = 3.6;
 
       switch (mode) {
         case MODES.HEATMAP:
@@ -77,7 +78,7 @@ export default function Heatmap() {
             precision: 6,
             ...filters,
           });
-          data = result;
+          data = result.data || []; // Extract data array from response
           break;
 
         case MODES.DEAD_ZONES:
@@ -101,9 +102,11 @@ export default function Heatmap() {
       }
 
       setClusters(data);
+      console.log(`✅ Loaded ${data.length} ${mode} clusters`);
     } catch (error) {
       console.error('Failed to load map data:', error);
       Alert.alert('Error', 'Failed to load map data. Please try again.');
+      setClusters([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
