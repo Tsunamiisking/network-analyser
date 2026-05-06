@@ -93,6 +93,21 @@ const apiFetch = async (endpoint, options = {}) => {
   throw lastError;
 };
 
+/**
+ * Clean filters by removing undefined/null values
+ * @param {Object} filters - Filter object
+ * @returns {Object} Cleaned filter object
+ */
+const cleanFilters = (filters) => {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== '') {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+};
+
 // Submit network data
 export const submitNetworkData = async (networkData) => {
   return apiFetch(ENDPOINTS.NETWORKS, {
