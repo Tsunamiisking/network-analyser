@@ -3,21 +3,36 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, getSignalColor } from '../constants/theme';
 
 export default function ProviderCard({ provider, avgSignalStrength, sampleCount, coverage, isBest = false }) {
+  // Calculate coverage from signal strength if not provided
+  const calculateCoverage = (signalStrength) => {
+    if (signalStrength >= -70) return 'Excellent';
+    if (signalStrength >= -85) return 'Good';
+    if (signalStrength >= -100) return 'Fair';
+    return 'Poor';
+  };
+  
+  const coverageLabel = coverage || calculateCoverage(avgSignalStrength);
+  
   // Get coverage color based on coverage label
   const getCoverageColor = (coverageLabel) => {
     switch (coverageLabel.toLowerCase()) {
+      case 'excellent':
       case 'strong':
         return COLORS.success;
+      case 'good':
       case 'moderate':
         return COLORS.warning;
+      case 'fair':
       case 'weak':
         return COLORS.danger;
+      case 'poor':
+        return COLORS.error;
       default:
         return COLORS.textMuted;
     }
   };
   
-  const coverageColor = getCoverageColor(coverage);
+  const coverageColor = getCoverageColor(coverageLabel);
   const signalColor = getSignalColor(avgSignalStrength);
   
   return (
@@ -49,7 +64,7 @@ export default function ProviderCard({ provider, avgSignalStrength, sampleCount,
         <View style={[styles.coverageBadge, { backgroundColor: coverageColor + '20' }]}>
           <View style={[styles.coverageIndicator, { backgroundColor: coverageColor }]} />
           <Text style={[styles.coverageText, { color: coverageColor }]}>
-            {coverage}
+            {coverageLabel}
           </Text>
         </View>
       </View>

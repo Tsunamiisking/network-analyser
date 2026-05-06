@@ -442,9 +442,9 @@ export default function Heatmap() {
           
           {/* Mode-specific descriptions */}
           <Text style={styles.legendDescription}>
-            {mode === MODES.HEATMAP && 'Shows typical user experience per 1.2km area (median signal, not average)'}
-            {mode === MODES.DEAD_ZONES && 'Red zones indicate areas with frequent connection failures'}
-            {mode === MODES.QUALITY && `Showing only "${qualityLevel}" quality areas using AI clustering`}
+            {mode === MODES.HEATMAP && 'Median signal per 1.2km area'}
+            {mode === MODES.DEAD_ZONES && 'Areas with connection failures'}
+            {mode === MODES.QUALITY && `${qualityLevel.replace('_', ' ')} areas (DBSCAN)`}
           </Text>
           
           <View style={styles.legendItems}>
@@ -452,28 +452,28 @@ export default function Heatmap() {
               <>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.strong }]} />
-                  <Text style={styles.legendText}>Excellent Signal</Text>
-                  <Text style={styles.legendSubtext}>-70 dBm or stronger</Text>
+                  <Text style={styles.legendText}>Excellent</Text>
+                  <Text style={styles.legendSubtext}>≥ -70</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: '#84cc16' }]} />
-                  <Text style={styles.legendText}>Good Signal</Text>
-                  <Text style={styles.legendSubtext}>-70 to -85 dBm</Text>
+                  <Text style={styles.legendText}>Good</Text>
+                  <Text style={styles.legendSubtext}>-71 to -85</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.moderate }]} />
-                  <Text style={styles.legendText}>Fair Signal</Text>
-                  <Text style={styles.legendSubtext}>-85 to -100 dBm</Text>
+                  <Text style={styles.legendText}>Fair</Text>
+                  <Text style={styles.legendSubtext}>-86 to -100</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.weak }]} />
-                  <Text style={styles.legendText}>Poor Signal</Text>
-                  <Text style={styles.legendSubtext}>-100 to -110 dBm</Text>
+                  <Text style={styles.legendText}>Poor</Text>
+                  <Text style={styles.legendSubtext}>-101 to -110</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.veryWeak }]} />
-                  <Text style={styles.legendText}>Very Poor Signal</Text>
-                  <Text style={styles.legendSubtext}>Below -110 dBm</Text>
+                  <Text style={styles.legendText}>Very Poor</Text>
+                  <Text style={styles.legendSubtext}> -110</Text>
                 </View>
               </>
             )}
@@ -483,12 +483,12 @@ export default function Heatmap() {
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: 'rgba(239, 68, 68, 0.6)' }]} />
                   <Text style={styles.legendText}>Dead Zone</Text>
-                  <Text style={styles.legendSubtext}>No connectivity detected</Text>
+                  <Text style={styles.legendSubtext}>No signal</Text>
                 </View>
                 <View style={styles.legendNote}>
-                  <MaterialIcons name="info-outline" size={14} color={COLORS.textMuted} />
+                  <MaterialIcons name="info-outline" size={12} color={COLORS.textMuted} />
                   <Text style={styles.legendNoteText}>
-                    Larger zones indicate more severe coverage issues
+                    Larger areas = worse coverage
                   </Text>
                 </View>
               </>
@@ -498,13 +498,13 @@ export default function Heatmap() {
               <>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: getQualityColor(qualityLevel) }]} />
-                  <Text style={styles.legendText}>{qualityLevel.toUpperCase().replace('_', ' ')} Quality</Text>
-                  <Text style={styles.legendSubtext}>Clustered areas detected</Text>
+                  <Text style={styles.legendText}>{qualityLevel.replace('_', ' ').toUpperCase()}</Text>
+                  <Text style={styles.legendSubtext}>AI clusters</Text>
                 </View>
                 <View style={styles.legendNote}>
-                  <MaterialIcons name="info-outline" size={14} color={COLORS.textMuted} />
+                  <MaterialIcons name="info-outline" size={12} color={COLORS.textMuted} />
                   <Text style={styles.legendNoteText}>
-                    Change quality level above to see different signal zones
+                    Use filter above to change level
                   </Text>
                 </View>
               </>
@@ -777,6 +777,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 100,
     left: SPACING.md,
+    right: SPACING.md,
+    maxWidth: 320,
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
@@ -800,8 +802,7 @@ const styles = StyleSheet.create({
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    flexWrap: 'wrap',
+    gap: SPACING.xs,
   },
   legendColor: {
     width: 16,
@@ -812,19 +813,19 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: FONT_SIZES.small,
     color: COLORS.textSecondary,
+    flex: 1,
   },
   legendSubtext: {
     fontFamily: FONTS.regular,
-    fontSize: 11,
+    fontSize: 10,
     color: COLORS.textMuted,
-    marginLeft: 'auto',
   },
   legendDescription: {
     fontFamily: FONTS.regular,
-    fontSize: FONT_SIZES.small,
+    fontSize: 11,
     color: COLORS.textMuted,
     marginBottom: SPACING.sm,
-    fontStyle: 'italic',
+    lineHeight: 15,
   },
   legendNote: {
     flexDirection: 'row',
