@@ -27,12 +27,12 @@ import {
 } from '../../constants/theme';
 import { PROVIDERS, SIGNAL_QUALITY_LEVELS, DBSCAN_DEFAULTS } from '../../config/api';
 
-// Lagos center coordinates
-const LAGOS_REGION = {
-  latitude: 6.5244,
-  longitude: 3.3792,
-  latitudeDelta: 0.4,
-  longitudeDelta: 0.4,
+// Nigeria SW region (covers Lagos, Ibadan, and surrounding areas)
+const INITIAL_REGION = {
+  latitude: 6.9,  // Between Lagos (6.5) and Ibadan (7.4)
+  longitude: 3.6,
+  latitudeDelta: 1.5,  // Covers both cities
+  longitudeDelta: 1.2,
 };
 
 // Visualization modes
@@ -67,10 +67,8 @@ export default function Heatmap() {
       // Build filters, removing undefined values
       const filters = {};
       if (provider !== 'All') filters.provider = provider;
-      filters.minLat = 6.3;
-      filters.maxLat = 6.8;
-      filters.minLng = 3.1;
-      filters.maxLng = 3.6;
+      // Removed hardcoded bounding box - show all available data
+      // Backend will return all data within Nigeria (geo-fenced at API level)
 
       switch (mode) {
         case MODES.HEATMAP:
@@ -239,7 +237,7 @@ export default function Heatmap() {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={LAGOS_REGION}
+        initialRegion={INITIAL_REGION}
         customMapStyle={darkMapStyle}
         showsUserLocation
         showsMyLocationButton={false}

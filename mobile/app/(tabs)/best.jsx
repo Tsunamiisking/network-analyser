@@ -202,32 +202,61 @@ export default function Best() {
       >
         {/* Error State */}
         {error && (
-          <View style={styles.messageCard}>
-            <MaterialIcons name="error-outline" size={48} color={COLORS.error} />
-            <Text style={styles.messageTitle}>Connection Error</Text>
-            <Text style={styles.messageText}>{error}</Text>
-            <TouchableOpacity style={styles.actionButton} onPress={onRefresh}>
-              <MaterialIcons name="refresh" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Try Again</Text>
+          <View style={styles.errorCard}>
+            <View style={styles.errorIconContainer}>
+              <MaterialIcons name="cloud-off" size={48} color={COLORS.error} />
+            </View>
+            <Text style={styles.errorTitle}>Connection Error</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={onRefresh}>
+              <MaterialIcons name="refresh" size={18} color="#fff" />
+              <Text style={styles.primaryButtonText}>Try Again</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Empty State */}
         {!error && providersData.length === 0 && (
-          <View style={styles.messageCard}>
-            <MaterialIcons name="signal-wifi-off" size={48} color={COLORS.textMuted} />
-            <Text style={styles.messageTitle}>No Data Available</Text>
-            <Text style={styles.messageText}>
-              No signal measurements found within {searchRadius >= 1000 ? `${searchRadius/1000}km` : `${searchRadius}m`}
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconContainer}>
+              <MaterialIcons name="explore-off" size={56} color={COLORS.info} />
+            </View>
+            <Text style={styles.emptyTitle}>No Data Available</Text>
+            <Text style={styles.emptyText}>
+              We searched within {searchRadius >= 1000 ? `${searchRadius/1000}km` : `${searchRadius}m`} but couldn't find signal measurements in your area.
             </Text>
-            <TouchableOpacity style={styles.actionButton} onPress={onRefresh}>
-              <MaterialIcons name="refresh" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Refresh</Text>
-            </TouchableOpacity>
-            <Text style={styles.hintText}>
-              💡 Help improve coverage by submitting measurements
-            </Text>
+            <View style={styles.emptyActions}>
+              <TouchableOpacity 
+                style={styles.primaryButton}
+                onPress={async () => {
+                  setIsLoading(true);
+                  setSearchRadius(2000);
+                  const coords = await getCurrentLocation();
+                  if (coords) {
+                    await fetchBestNetwork(coords, 2000);
+                  }
+                  setIsLoading(false);
+                }}
+              >
+                <MaterialIcons name="my-location" size={18} color="#fff" />
+                <Text style={styles.primaryButtonText}>Update Location</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.secondaryButton}
+                onPress={onRefresh}
+              >
+                <MaterialIcons name="refresh" size={18} color={COLORS.info} />
+                <Text style={styles.secondaryButtonText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.hintCard}>
+              <MaterialIcons name="lightbulb-outline" size={16} color={COLORS.warning} />
+              <Text style={styles.hintText}>
+                Help improve coverage data by submitting signal measurements
+              </Text>
+            </View>
           </View>
         )}
         
@@ -330,174 +359,16 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
   },
   
-  messageCard: {
+  // Error State
+  errorCard: {
     backgroundColor: COLORS.card,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.xl,
     alignItems: 'center',
     gap: SPACING.md,
     marginVertical: SPACING.lg,
-  },
-  
-  messageTitle: {
-    fontFamily: FONTS.headerSemibold,
-    fontSize: FONT_SIZES.title,
-    color: COLORS.textPrimary,
-  },
-  
-  messageText: {
-    fontFamily: FONTS.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.info,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.sm,
-  },
-  
-  actionButtonText: {
-    fontFamily: FONTS.semibold,
-    fontSize: FONT_SIZES.body,
-    color: '#fff',
-  },
-  
-  hintText: {
-    fontFamily: FONTS.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
-    marginTop: SPACING.sm,
-    textAlign: 'center',
-  },
-  
-  section: {
-    marginBottom: SPACING.lg,
-  },
-  
-  sectionLabel: {
-    fontFamily: FONTS.headerSemibold,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.sm,
-    letterSpacing: 0.5,
-  },
-  
-  infoFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.card,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.md,
-  },
-  
-  infoFooterText: {
-    flex: 1,
-    fontFamily: FONTS.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
-    lineHeight: 18,
-  },
-
-  
-  scrollView: {
-    flex: 1,
-  },
-  
-  scrollContent: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.xl,
-  },
-  
-  headerInfo: {
-    alignItems: 'center',
-    paddingVertical: SPACING.lg,
-  },
-  
-  headerTitle: {
-    fontFamily: FONTS.header,
-    fontSize: FONT_SIZES.header,
-    color: COLORS.textPrimary,
-    marginTop: SPACING.sm,
-    marginBottom: 4,
-  },
-  
-  headerSubtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textSecondary,
-  },
-  
-  changeLocationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.info,
-  },
-  
-  changeLocationText: {
-    fontFamily: FONTS.medium,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.info,
-  },
-  
-  section: {
-    marginBottom: SPACING.lg,
-  },
-  
-  sectionTitle: {
-    fontFamily: FONTS.headerSemibold,
-    fontSize: FONT_SIZES.title,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.sm,
-  },
-  
-  sectionSubtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.md,
-  },
-  
-  infoNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.card,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.md,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.info,
-  },
-  
-  infoNoteText: {
-    flex: 1,
-    fontFamily: FONTS.regular,
-  
-  errorCard: {
-    backgroundColor: COLORS.card,
-    padding: SPACING.xl,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
-    borderWidth: 2,
-    borderColor: COLORS.error,
+    borderColor: COLORS.error + '30',
   },
   
   errorIconContainer: {
@@ -514,7 +385,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.headerSemibold,
     fontSize: FONT_SIZES.title,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
   },
   
   errorText: {
@@ -522,32 +392,19 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.body,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: SPACING.sm,
+    lineHeight: 20,
   },
   
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.error,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.sm,
-  },
-  
-  retryButtonText: {
-    fontFamily: FONTS.semibold,
-    fontSize: FONT_SIZES.body,
-    color: '#fff',
-  },
-  
+  // Empty State
   emptyCard: {
     backgroundColor: COLORS.card,
-    padding: SPACING.xl,
     borderRadius: RADIUS.lg,
+    padding: SPACING.xl,
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    gap: SPACING.md,
+    marginVertical: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   
   emptyIconContainer: {
@@ -557,14 +414,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.info + '15',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 2,
+    borderColor: COLORS.info + '30',
   },
   
   emptyTitle: {
     fontFamily: FONTS.headerSemibold,
     fontSize: FONT_SIZES.title,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.sm,
   },
   
   emptyText: {
@@ -572,70 +430,105 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.body,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: SPACING.lg,
+    lineHeight: 20,
   },
   
   emptyActions: {
     flexDirection: 'row',
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+    width: '100%',
   },
   
-  primaryActionButton: {
+  primaryButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: SPACING.xs,
     backgroundColor: COLORS.info,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
     borderRadius: RADIUS.md,
   },
   
-  primaryActionText: {
+  primaryButtonText: {
     fontFamily: FONTS.semibold,
     fontSize: FONT_SIZES.body,
     color: '#fff',
   },
   
-  secondaryActionButton: {
+  secondaryButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: SPACING.xs,
     backgroundColor: 'transparent',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
     borderRadius: RADIUS.md,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: COLORS.info,
   },
   
-  secondaryActionText: {
+  secondaryButtonText: {
     fontFamily: FONTS.semibold,
     fontSize: FONT_SIZES.body,
     color: COLORS.info,
   },
   
-  emptyHint: {
+  hintCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.sm,
+    alignItems: 'center',
+    gap: SPACING.xs,
     backgroundColor: COLORS.warning + '10',
-    padding: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     borderRadius: RADIUS.md,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.warning,
+    borderWidth: 1,
+    borderColor: COLORS.warning + '30',
+    marginTop: SPACING.sm,
   },
   
-  emptyHintText: {
+  hintText: {
     flex: 1,
     fontFamily: FONTS.regular,
     fontSize: FONT_SIZES.small,
     color: COLORS.textSecondary,
     lineHeight: 18,
   },
+  
+  section: {
+    marginBottom: SPACING.xl,
+  },
+  
+  sectionLabel: {
+    fontFamily: FONTS.headerSemibold,
     fontSize: FONT_SIZES.small,
-    color: COLORS.textSecondary,
+    color: COLORS.info,
+    marginBottom: SPACING.md,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  
+  infoFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.card,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  
+  infoFooterText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
     lineHeight: 18,
   },
 });

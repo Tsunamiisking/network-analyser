@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, getSignalColor } from '../constants/theme';
+import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, SHADOWS, getSignalColor } from '../constants/theme';
 
 export default function ProviderCard({ provider, avgSignalStrength, sampleCount, coverage, isBest = false }) {
   // Calculate coverage from signal strength if not provided
@@ -24,7 +24,7 @@ export default function ProviderCard({ provider, avgSignalStrength, sampleCount,
         return COLORS.warning;
       case 'fair':
       case 'weak':
-        return COLORS.danger;
+        return '#FB923C'; // Orange
       case 'poor':
         return COLORS.error;
       default:
@@ -35,33 +35,76 @@ export default function ProviderCard({ provider, avgSignalStrength, sampleCount,
   const coverageColor = getCoverageColor(coverageLabel);
   const signalColor = getSignalColor(avgSignalStrength);
   
+  // Calculate signal percentage for visual bar
+  const signalPercentage = Math.max(0, Math.min(100, ((avgSignalStrength + 110) / 60) * 100));
+  
+  // Calculate signal bars (1-5)
+  const signalBars = Math.ceil((signalPercentage / 100) * 5);
+  
   return (
     <View style={[
       styles.card,
-      isBest && styles.bestCard
+      isBest && styles.bestCard,
+      isBest && SHADOWS.lg
     ]}>
+      {/* Glow effect for best card */}
+      {isBest && <View style={styles.glowEffect} />}
+      
       {/* Best Badge */}
       {isBest && (
         <View style={styles.bestBadge}>
-          <MaterialIcons name="star" size={16} color={COLORS.warning} />
-          <Text style={styles.bestBadgeText}>BEST NETWORK</Text>
+          <View style={styles.bestBadgeGlow}>
+            <MaterialIcons name="workspace-premium" size={16} color={COLORS.warning} />
+          </View>
+          <Text style={styles.bestBadgeText}>RECOMMENDED</Text>
         </View>
       )}
       
-      {/* Provider Name */}
+      {/* Header Section */}
       <View style={styles.header}>
-        <View style={styles.providerInfo}>
-          <MaterialIcons name="cell-tower" size={24} color={COLORS.info} />
-          <Text style={[
-            styles.providerName,
-            isBest && styles.providerNameBest
+        {/* Provider Info */}
+        <View style={styles.providerSection}>
+          <View style={[
+            styles.iconContainer,
+            { backgroundColor: signalColor + '20' }
           ]}>
-            {provider}
-          </Text>
+            <MaterialIcons name="cell-tower" size={28} color={signalColor} />
+          </View>
+          
+          <View style={styles.providerTextSection}>
+            <Text style={[
+              styles.providerName,
+              isBest && styles.providerNameBest
+            ]}>
+              {provider}
+            </Text>
+            
+            {/* Signal Bars Visual */}
+            <View style={styles.signalBarsContainer}>
+              {[1, 2, 3, 4, 5].map((bar) => (
+                <View
+                  key={bar}
+                  style={[
+                    styles.signalBarItem,
+                    { 
+                      height: bar * 3 + 4,
+                      backgroundColor: bar <= signalBars 
+                        ? signalColor 
+                        : COLORS.border
+                    }
+                  ]}
+                />
+              ))}
+              <Text style={styles.signalBarsLabel}>{signalPercentage.toFixed(0)}%</Text>
+            </View>
+          </View>
         </View>
         
         {/* Coverage Badge */}
-        <View style={[styles.coverageBadge, { backgroundColor: coverageColor + '20' }]}>
+        <View style={[styles.coverageBadge, { 
+          backgroundColor: coverageColor + '15',
+          borderColor: coverageColor + '40',
+        }]}>
           <View style={[styles.coverageIndicator, { backgroundColor: coverageColor }]} />
           <Text style={[styles.coverageText, { color: coverageColor }]}>
             {coverageLabel}
@@ -69,44 +112,49 @@ export default function ProviderCard({ provider, avgSignalStrength, sampleCount,
         </View>
       </View>
       
-      {/* Metrics */}
-      <View style={styles.metrics}>
+      {/* Divider */}
+      <View style={styles.divider} />
+      
+      {/* Metrics Grid */}
+      <View style={styles.metricsGrid}>
         {/* Signal Strength */}
-        <View style={styles.metric}>
-          <MaterialIcons name="signal-cellular-alt" size={20} color={signalColor} />
-          <View style={styles.metricContent}>
-            <Text style={styles.metricLabel}>Avg Signal</Text>
-            <Text style={[styles.metricValue, { color: signalColor }]}>
-              {avgSignalStrength} dBm
-            </Text>
+        <View style={styles.metricCard}>
+          <View style={styles.metricHeader}>
+            <MaterialIcons name="signal-cellular-alt" size={18} color={signalColor} />
+            <Text style={styles.metricLabel}>Signal Strength</Text>
           </View>
+          <Text style={[styles.metricValue, { color: signalColor }]}>
+            {avgSignalStrength.toFixed(1)} <Text style={styles.metricUnit}>dBm</Text>
+          </Text>
         </View>
         
         {/* Sample Count */}
-        <View style={styles.metric}>
-          <MaterialIcons name="apps" size={20} color={COLORS.info} />
-          <View style={styles.metricContent}>
-            <Text style={styles.metricLabel}>Samples</Text>
-            <Text style={styles.metricValue}>
-              {sampleCount.toLocaleString()}
-            </Text>
+        <View style={styles.metricCard}>
+          <View style={styles.metricHeader}>
+            <MaterialIcons name="analytics" size={18} color={COLORS.info} />
+            <Text style={styles.metricLabel}>Data Points</Text>
           </View>
+          <Text style={[styles.metricValue, { color: COLORS.textPrimary }]}>
+            {sampleCount.toLocaleString()}
+          </Text>
         </View>
       </View>
       
       {/* Signal Strength Visual Bar */}
-      <View style={styles.signalBar}>
-        <View style={styles.signalBarBackground}>
-          <View 
-            style={[
-              styles.signalBarFill,
-              { 
-                backgroundColor: signalColor,
-                // Convert dBm to percentage (assuming -50 to -110 range)
-                width: `${Math.max(0, Math.min(100, ((avgSignalStrength + 110) / 60) * 100))}%`
-              }
-            ]} 
-          />
+      <View style={styles.progressSection}>
+        <Text style={styles.progressLabel}>Coverage Quality</Text>
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarBackground}>
+            <View 
+              style={[
+                styles.progressBarFill,
+                { 
+                  backgroundColor: signalColor,
+                  width: `${signalPercentage}%`
+                }
+              ]} 
+            />
+          </View>
         </View>
       </View>
     </View>
@@ -117,56 +165,117 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
+    padding: SPACING.lg,
     marginBottom: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
+    position: 'relative',
+    overflow: 'hidden',
   },
   
   bestCard: {
-    borderColor: COLORS.warning,
+    borderColor: COLORS.warning + '60',
     borderWidth: 2,
+    backgroundColor: '#1F2937', // Slightly lighter for emphasis
   },
+  
+  // glowEffect: {
+  //   position: 'absolute',
+  //   top: 0,
+  //   left: 0,
+  //   right: 0,
+  //   height: 3,
+  //   backgroundColor: COLORS.warning,
+  //   shadowColor: COLORS.warning,
+  //   shadowOffset: { width: 0, height: 0 },
+  //   shadowOpacity: 0.8,
+  //   shadowRadius: 10,
+  //   elevation: 10,
+  // },
   
   bestBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.warning + '20',
+    backgroundColor: COLORS.warning + '15',
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.sm,
-    marginBottom: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.warning + '30',
+  },
+  
+  bestBadgeGlow: {
+    shadowColor: COLORS.warning,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 4,
   },
   
   bestBadgeText: {
     fontFamily: FONTS.bold,
     fontSize: FONT_SIZES.small,
     color: COLORS.warning,
+    letterSpacing: 0.8,
   },
   
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: SPACING.md,
   },
   
-  providerInfo: {
+  providerSection: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
-    gap: SPACING.sm,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  
+  providerTextSection: {
+    flex: 1,
+    justifyContent: 'center',
   },
   
   providerName: {
     fontFamily: FONTS.headerSemibold,
     fontSize: FONT_SIZES.title,
     color: COLORS.textPrimary,
+    marginBottom: 6,
   },
   
   providerNameBest: {
-    fontSize: FONT_SIZES.header,
+    fontSize: 20,
+    fontFamily: FONTS.header,
+  },
+  
+  signalBarsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  
+  signalBarItem: {
+    width: 5,
+    borderRadius: 2,
+  },
+  
+  signalBarsLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
+    marginLeft: 6,
   },
   
   coverageBadge: {
@@ -174,67 +283,108 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.sm,
+    paddingVertical: 6,
+    borderRadius: RADIUS.md,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    marginTop: SPACING.xs,
   },
   
   coverageIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
+    elevation: 3,
   },
   
   coverageText: {
     fontFamily: FONTS.semibold,
     fontSize: FONT_SIZES.small,
+    letterSpacing: 0.3,
   },
   
-  metrics: {
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: SPACING.md,
+  },
+  
+  metricsGrid: {
     flexDirection: 'row',
-    gap: SPACING.md,
+    gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
   
-  metric: {
+  metricCard: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
     backgroundColor: COLORS.background,
     padding: SPACING.sm,
     borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   
-  metricContent: {
-    flex: 1,
+  metricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
   },
   
   metricLabel: {
     fontFamily: FONTS.regular,
     fontSize: FONT_SIZES.small,
     color: COLORS.textMuted,
-    marginBottom: 2,
   },
   
   metricValue: {
-    fontFamily: FONTS.semibold,
-    fontSize: FONT_SIZES.body,
+    fontFamily: FONTS.headerSemibold,
+    fontSize: 18,
     color: COLORS.textPrimary,
   },
   
-  signalBar: {
-    marginTop: SPACING.sm,
+  metricUnit: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
   },
   
-  signalBarBackground: {
-    height: 6,
+  progressSection: {
+    gap: 6,
+  },
+  
+  progressLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
+  },
+  
+  progressBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  
+  progressBarBackground: {
+    flex: 1,
+    height: 8,
     backgroundColor: COLORS.background,
     borderRadius: RADIUS.sm,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   
-  signalBarFill: {
+  progressBarFill: {
     height: '100%',
     borderRadius: RADIUS.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });
