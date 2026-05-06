@@ -6,6 +6,7 @@ const { connectDB, closeDB } = require('./src/config/db');
 const networkRoutes = require('./src/routes/networkroutes');
 const analyticsRoutes = require('./src/routes/analyticsRoute');
 const reportRoutes = require('./src/routes/reportRoutes');
+const clusteringRoutes = require('./src/routes/clusteringRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,6 +38,7 @@ app.get('/', (req, res) => {
 app.use('/api/networks', networkRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/clustering', clusteringRoutes);
 
 
 // 404 handler
