@@ -17,6 +17,7 @@ import {
   submitNetworkData 
 } from '../../services/api';
 import { assembleTelemetryPacket } from '../../services/sensingService';
+import { getCollectionStats } from '../../services/backgroundCollectionService';
 import { 
   COLORS, 
   FONTS, 
@@ -56,11 +57,23 @@ export default function Heatmap() {
   const [showControls, setShowControls] = useState(true);
   const [showLegend, setShowLegend] = useState(true);
   const [isContributing, setIsContributing] = useState(false);
+  const [bgCollectionStatus, setBgCollectionStatus] = useState(null);
 
   // Load data when mode, provider, or quality changes
   useEffect(() => {
     loadMapData();
+    loadBackgroundStatus();
   }, [mode, provider, qualityLevel]);
+
+  // Load background collection status
+  const loadBackgroundStatus = async () => {
+    try {
+      const stats = await getCollectionStats();
+      setBgCollectionStatus(stats);
+    } catch (error) {
+      console.error('Failed to load background status:', error);
+    }
+  };
 
   // Handle network data contribution
   const handleContribute = async () => {
@@ -575,6 +588,22 @@ export default function Heatmap() {
         <MaterialIcons name="refresh" size={24} color={COLORS.textPrimary} />
       </TouchableOpacity>
 
+      {/* Background Collection Status */}
+      {bgCollectionStatus?.enabled && bgCollectionStatus?.lastCollectionTime && (
+        <View style={styles.statusBadge}>
+          <MaterialIcons name="sensors" size={14} color={COLORS.success} />
+          <Text style={styles.statusBadgeText}>
+            {(() => {
+              const diff = new Date() - new Date(bgCollectionStatus.lastCollectionTime);
+              const minutes = Math.floor(diff / 60000);
+              if (minutes < 1) return 'Just now';
+              if (minutes < 60) return `${minutes}m ago`;
+              return `${Math.floor(minutes / 60)}h ago`;
+            })()}
+          </Text>
+        </View>
+      )}
+
       {/* Legend Toggle (when closed) */}
       {!showLegend && (
         <TouchableOpacity 
@@ -926,5 +955,24 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     ...SHADOWS.md,
     zIndex: 3,
+  },
+  statusBadge: {
+    position: 'absolute',
+    top: 80,
+    left: SPACING.md,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xxs,
+    ...SHADOWS.md,
+    zIndex: 3,
+  },
+  statusBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textSecondary,
   },
 });
