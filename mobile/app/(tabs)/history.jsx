@@ -7,10 +7,11 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 import SignalHistoryCard from "../../components/SignalHistoryCard";
-import { MOCK_SIGNAL_HISTORY } from "../../constants/mockData";
+import { getMyHistory } from "../../services/api";
+import { getDeviceId } from "../../utils/helpers";
 import {
   COLORS,
   FONTS,
@@ -23,45 +24,95 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function History() {
   const [refreshing, setRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [limit, setLimit] = useState(5); // Default to showing last 5
+  const [isLoading, setIsLoading] = useState(true);
+  const [historyData, setHistoryData] = useState([]);
+  const [deviceId, setDeviceId] = useState(null);
+  const [error, setError] = useState(null);
+  const [limit, setLimit] = useState(50); // Default to showing last 50
 
-  // Using mock data - will replace with API call later
-  const allData = MOCK_SIGNAL_HISTORY.data;
-  const historyData = allData.slice(0, limit);
-  const hasMore = allData.length > limit;
+  // Initialize device ID and load data
+  useEffect(() => {
+    initializeHistory();
+  }, []);
 
-  // Simulated refresh function
+  // Reload when limit changes
+  useEffect(() => {
+    if (deviceId) {
+      fetchHistory();
+    }
+  }, [limit, deviceId]);
+
+  const initializeHistory = async () => {
+    try {
+      const id = await getDeviceId();
+      setDeviceId(id);
+      if (id) {
+        await fetchHistory(id);
+      }
+    } catch (err) {
+      console.error('Error initializing history:', err);
+      setError('Failed to initialize history');
+      setIsLoading(false);
+    }
+  };
+
+  const fetchHistory = async (id = deviceId) => {
+    if (!id) return;
+    
+    try {
+      setError(null);
+      const response = await getMyHistory(id, limit);
+      setHistoryData(response.data || []);
+    } catch (err) {
+      console.error('Error fetching history:', err);
+      setError('Failed to load history. Pull to refresh.');
+      setHistoryData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Refresh function
   const onRefresh = async () => {
     setRefreshing(true);
-    // TODO: Replace with actual API call with limit parameter
-    // await fetchSignalHistory(limit);
-    setTimeout(() => setRefreshing(false), 1000);
+    await fetchHistory();
+    setRefreshing(false);
   };
 
-  // Load more data
-  const loadMore = () => {
-    setLimit((prev) => Math.min(prev + 5, allData.length));
+  // Adjust limit
+  const showMore = () => {
+    setLimit((prev) => prev + 25);
   };
 
-  // Show all data
-  const showAll = () => {
-    setLimit(allData.length);
-  };
-
-  // Reset to default
   const showLess = () => {
-    setLimit(5);
+    setLimit(50);
   };
 
   // Empty state component
   const EmptyState = () => (
     <View style={styles.emptyState}>
-      <MaterialIcons name="history" size={80} color={COLORS.textMuted} />
-      <Text style={styles.emptyTitle}>No History Yet</Text>
-      <Text style={styles.emptyText}>
-        Your signal measurements will appear here
+      <MaterialIcons 
+        name={error ? "error-outline" : "history"} 
+        size={80} 
+        color={error ? COLORS.error : COLORS.textMuted} 
+      />
+      <Text style={styles.emptyTitle}>
+        {error ? "Unable to Load History" : "No History Yet"}
       </Text>
+      <Text style={styles.emptyText}>
+        {error 
+          ? error 
+          : "Your signal measurements will appear here"}
+      </Text>
+      {error && (
+        <TouchableOpacity 
+          style={styles.retryButton} 
+          onPress={fetchHistory}
+        >
+          <MaterialIcons name="refresh" size={20} color={COLORS.textPrimary} />
+          <Text style={styles.retryButtonText}>Try Again</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -71,23 +122,22 @@ export default function History() {
       <View style={styles.headerTop}>
         <View>
           <Text style={styles.headerSubtitle}>
-            Showing {historyData.length} of {allData.length} measurement
-            {allData.length !== 1 ? "s" : ""}
+            Showing {historyData.length} measurement{historyData.length !== 1 ? "s" : ""}
           </Text>
         </View>
 
-        {/* Filter Toggle */}
-        {limit < allData.length && (
-          <TouchableOpacity style={styles.filterButton} onPress={showAll}>
-            <MaterialIcons name="filter-list" size={18} color={COLORS.info} />
-            <Text style={styles.filterButtonText}>Show All</Text>
+        {/* Adjust Limit Controls */}
+        {historyData.length >= limit && (
+          <TouchableOpacity style={styles.filterButton} onPress={showMore}>
+            <MaterialIcons name="expand-more" size={18} color={COLORS.info} />
+            <Text style={styles.filterButtonText}>Show More</Text>
           </TouchableOpacity>
         )}
 
-        {limit === allData.length && allData.length > 5 && (
+        {limit > 50 && (
           <TouchableOpacity style={styles.filterButton} onPress={showLess}>
             <MaterialIcons
-              name="filter-list-off"
+              name="expand-less"
               size={18}
               color={COLORS.textMuted}
             />
@@ -97,33 +147,20 @@ export default function History() {
       </View>
 
       {/* Limit Info Badge */}
-      {hasMore && (
+      {limit > 50 && (
         <View style={styles.limitBadge}>
           <MaterialIcons
-            name="access-time"
+            name="filter-list"
             size={14}
             color={COLORS.textMuted}
           />
           <Text style={styles.limitBadgeText}>
-            {allData.length - limit} more record
-            {allData.length - limit !== 1 ? "s" : ""} available
+            Showing last {limit} records
           </Text>
         </View>
       )}
     </View>
   );
-
-  // Footer component for "Load More"
-  const ListFooter = () => {
-    if (!hasMore) return null;
-
-    return (
-      <TouchableOpacity style={styles.loadMoreButton} onPress={loadMore}>
-        <MaterialIcons name="expand-more" size={24} color={COLORS.info} />
-        <Text style={styles.loadMoreText}>Load More (5)</Text>
-      </TouchableOpacity>
-    );
-  };
 
   if (isLoading) {
     return (
@@ -142,7 +179,6 @@ export default function History() {
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => <SignalHistoryCard item={item} />}
         ListHeaderComponent={ListHeader}
-        ListFooterComponent={ListFooter}
         ListEmptyComponent={EmptyState}
         contentContainerStyle={
           historyData.length === 0
@@ -243,31 +279,12 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
 
-  loadMoreButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: SPACING.sm,
-    backgroundColor: COLORS.card,
-    marginHorizontal: SPACING.md,
-    marginVertical: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  loadMoreText: {
-    fontFamily: FONTS.semibold,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.info,
-  },
-
   emptyState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xxl,
   },
 
   emptyTitle: {
@@ -283,5 +300,25 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.body,
     color: COLORS.textMuted,
     textAlign: "center",
+    marginBottom: SPACING.md,
+  },
+
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    backgroundColor: COLORS.card,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: SPACING.md,
+  },
+
+  retryButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textPrimary,
   },
 });
