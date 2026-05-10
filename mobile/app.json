@@ -13,7 +13,16 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to collect network quality data in the background, helping create accurate coverage maps.",
+        "NSLocationWhenInUseUsageDescription": "We need your location to map network quality at your current position.",
+        "NSLocationAlwaysUsageDescription": "We collect network data in the background to improve coverage maps. You can disable this anytime in Settings."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,14 +30,33 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "READ_PHONE_STATE",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "We need your location to collect network quality data in the background, helping create accurate coverage maps.",
+          "locationAlwaysPermission": "We collect network data in the background to improve coverage maps. You can disable this anytime in Settings.",
+          "locationWhenInUsePermission": "We need your location to map network quality at your current position.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-task-manager",
+      "expo-background-fetch"
     ]
   }
 }

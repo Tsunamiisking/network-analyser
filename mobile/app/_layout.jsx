@@ -15,6 +15,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { COLORS } from '../constants/theme';
+import { initializeApp } from '../services/appInitService';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -33,6 +34,8 @@ export default function Layout() {
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
+      // Initialize app services (background collection, etc.)
+      initializeApp();
     }
   }, [fontsLoaded]);
 
@@ -91,6 +94,15 @@ export default function Layout() {
           title: 'Report Issue',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="report-problem" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="(tabs)/settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="settings" size={size} color={color} />
           ),
         }}
       />
