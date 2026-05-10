@@ -18,6 +18,7 @@ import {
   FONT_SIZES,
   SPACING,
   RADIUS,
+  SHADOWS,
 } from "../../constants/theme";
 import PageHeader from "../../components/PageHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -201,11 +202,12 @@ export default function History() {
 
 const styles = StyleSheet.create({
   container: {
-    // flex: 1,
+    flex: 1,
     backgroundColor: COLORS.background,
   },
 
   centerContent: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -218,7 +220,6 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingTop: SPACING.md,
     paddingBottom: SPACING.xl,
   },
 
@@ -228,7 +229,9 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
     paddingBottom: SPACING.md,
+    backgroundColor: COLORS.background,
   },
 
   headerTop: {
@@ -247,13 +250,12 @@ const styles = StyleSheet.create({
   filterButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: SPACING.xs,
     backgroundColor: COLORS.card,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    ...SHADOWS.md,
   },
 
   filterButtonText: {
@@ -265,12 +267,13 @@ const styles = StyleSheet.create({
   limitBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: SPACING.xs,
     backgroundColor: COLORS.card,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.sm,
     alignSelf: "flex-start",
+    marginTop: SPACING.sm,
   },
 
   limitBadgeText: {
@@ -284,7 +287,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.xxl,
+    paddingVertical: SPACING.xl,
   },
 
   emptyTitle: {
@@ -310,10 +313,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginTop: SPACING.md,
+    borderRadius: RADIUS.lg,
+    ...SHADOWS.md,
+    marginTop: SPACING.lg,
   },
 
   retryButtonText: {
