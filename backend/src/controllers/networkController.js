@@ -376,6 +376,26 @@ exports.bestAggregatedNetwork = async (req, res) => {
       });
     }
 
+    // Signal quality classification
+    const classifySignalQuality = (avgSignal) => {
+      if (avgSignal > -85) return { level: 'excellent', label: 'Excellent' };
+      if (avgSignal > -95) return { level: 'good', label: 'Good' };
+      if (avgSignal > -105) return { level: 'fair', label: 'Fair' };
+      if (avgSignal > -115) return { level: 'poor', label: 'Poor' };
+      return { level: 'very_poor', label: 'Very Poor' };
+    };
+
+    // Add quality classification to all providers
+    const enrichedData = data.map(provider => ({
+      ...provider,
+      quality: classifySignalQuality(provider.avgSignalStrength)
+    }));
+
+    // Check if best network meets minimum quality threshold (-105 dBm)
+    const MINIMUM_QUALITY_THRESHOLD = -105;
+    const bestProvider = enrichedData[0];
+    const isQualityAcceptable = bestProvider.avgSignalStrength > MINIMUM_QUALITY_THRESHOLD;
+
     const response = {
       success: true,
       location: {
@@ -383,8 +403,11 @@ exports.bestAggregatedNetwork = async (req, res) => {
         coordinates: [longitude, latitude]
       },
       radius: maxDistance,
-      bestProvider: data[0], // highest avg signal
-      allProviders: data,
+      bestProvider: bestProvider,
+      allProviders: enrichedData,
+      qualityWarning: !isQualityAcceptable 
+        ? `Limited data available - best network has ${bestProvider.quality.label.toLowerCase()} signal (${bestProvider.avgSignalStrength} dBm)` 
+        : null,
       cached: false
     };
 
