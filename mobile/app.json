@@ -14,17 +14,22 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.networkanalyser.mobile",
       "infoPlist": {
         "UIBackgroundModes": [
+          "location",
+          "fetch",
           "location",
           "fetch"
         ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to collect network quality data in the background, helping create accurate coverage maps.",
         "NSLocationWhenInUseUsageDescription": "We need your location to map network quality at your current position.",
-        "NSLocationAlwaysUsageDescription": "We collect network data in the background to improve coverage maps. You can disable this anytime in Settings."
+        "NSLocationAlwaysUsageDescription": "We collect network data in the background to improve coverage maps. You can disable this anytime in Settings.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.networkanalyser.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -36,7 +41,14 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "READ_PHONE_STATE",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
       ]
     },
     "web": {
@@ -57,6 +69,12 @@
       ],
       "expo-task-manager",
       "expo-background-fetch"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ac70d413-ec00-4d76-9bf5-696cf73e6e03"
+      }
+    }
   }
 }
