@@ -13,8 +13,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { 
   getAggregatedHeatmap, 
   getDeadZoneClusters, 
-  getSignalQualityClusters 
+  getSignalQualityClusters,
+  submitNetworkData 
 } from '../../services/api';
+import { assembleTelemetryPacket } from '../../services/sensingService';
 import { 
   COLORS, 
   FONTS, 
@@ -53,11 +55,52 @@ export default function Heatmap() {
   const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [showLegend, setShowLegend] = useState(true);
+  const [isContributing, setIsContributing] = useState(false);
 
   // Load data when mode, provider, or quality changes
   useEffect(() => {
     loadMapData();
   }, [mode, provider, qualityLevel]);
+
+  // Handle network data contribution
+  const handleContribute = async () => {
+    try {
+      setIsContributing(true);
+      
+      // Assemble telemetry packet (includes location, signal, carrier, etc.)
+      const telemetryData = await assembleTelemetryPacket();
+      
+      if (!telemetryData) {
+        Alert.alert(
+          'Location Required',
+          'Please enable location services to contribute network data.'
+        );
+        return;
+      }
+
+      // Submit to backend
+      await submitNetworkData(telemetryData);
+      
+      Alert.alert(
+        'Success! 🎉',
+        `Thank you for contributing! Signal: ${telemetryData.signalStrength}dBm, Provider: ${telemetryData.provider}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => loadMapData() // Refresh map to show new data
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Contribution error:', error);
+      Alert.alert(
+        'Submission Failed',
+        error.message || 'Could not submit network data. Please try again.'
+      );
+    } finally {
+      setIsContributing(false);
+    }
+  };
 
   const loadMapData = async () => {
     setLoading(true);
@@ -511,6 +554,19 @@ export default function Heatmap() {
         </View>
       )}
 
+      {/* Contribute Button */}
+      <TouchableOpacity 
+        style={styles.contributeButton}
+        onPress={handleContribute}
+        disabled={isContributing}
+      >
+        {isContributing ? (
+          <ActivityIndicator size="small" color={COLORS.textPrimary} />
+        ) : (
+          <MaterialIcons name="add-location" size={24} color={COLORS.success} />
+        )}
+      </TouchableOpacity>
+
       {/* Refresh Button */}
       <TouchableOpacity 
         style={styles.refreshButton}
@@ -840,6 +896,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textMuted,
     lineHeight: 16,
+  },
+  contributeButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 80,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.round,
+    padding: SPACING.md,
+    ...SHADOWS.lg,
+    zIndex: 3,
   },
   refreshButton: {
     position: 'absolute',
