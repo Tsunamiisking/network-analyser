@@ -91,7 +91,68 @@ export default function Heatmap() {
         return;
       }
 
-      // Submit to backend
+      // iOS carrier detection: if provider is "iOS Carrier", let user select manually
+      if (telemetryData.provider === 'iOS Carrier') {
+        // Show carrier selection dialog
+        Alert.alert(
+          'Select Your Network Provider',
+          'iOS privacy restrictions prevent automatic carrier detection. Please select your current network:',
+          [
+            {
+              text: 'MTN',
+              onPress: async () => {
+                telemetryData.provider = 'MTN';
+                await submitAndRefresh(telemetryData);
+              }
+            },
+            {
+              text: 'Airtel',
+              onPress: async () => {
+                telemetryData.provider = 'Airtel';
+                await submitAndRefresh(telemetryData);
+              }
+            },
+            {
+              text: 'Glo',
+              onPress: async () => {
+                telemetryData.provider = 'Glo';
+                await submitAndRefresh(telemetryData);
+              }
+            },
+            {
+              text: '9mobile',
+              onPress: async () => {
+                telemetryData.provider = '9mobile';
+                await submitAndRefresh(telemetryData);
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setIsContributing(false)
+            }
+          ],
+          { cancelable: false }
+        );
+        return; // Exit and wait for user selection
+      }
+
+      // Android or known carrier: submit directly
+      await submitAndRefresh(telemetryData);
+      
+    } catch (error) {
+      console.error('Contribution error:', error);
+      Alert.alert(
+        'Submission Failed',
+        error.message || 'Could not submit network data. Please try again.'
+      );
+      setIsContributing(false);
+    }
+  };
+
+  // Helper function to submit data and refresh map
+  const submitAndRefresh = async (telemetryData) => {
+    try {
       await submitNetworkData(telemetryData);
       
       Alert.alert(
@@ -103,12 +164,6 @@ export default function Heatmap() {
             onPress: () => loadMapData() // Refresh map to show new data
           }
         ]
-      );
-    } catch (error) {
-      console.error('Contribution error:', error);
-      Alert.alert(
-        'Submission Failed',
-        error.message || 'Could not submit network data. Please try again.'
       );
     } finally {
       setIsContributing(false);

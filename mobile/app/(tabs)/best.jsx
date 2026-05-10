@@ -25,6 +25,7 @@ export default function Best() {
   const [locationText, setLocationText] = useState('Fetching location...');
   const [error, setError] = useState(null);
   const [searchRadius, setSearchRadius] = useState(2000); // Start with 2km
+  const [qualityWarning, setQualityWarning] = useState(null);
   
   const bestProvider = providersData[0]; // First one is the best (highest signal)
   const otherProviders = providersData.slice(1); // Rest are comparisons
@@ -94,6 +95,7 @@ export default function Best() {
 
     try {
       setError(null);
+      setQualityWarning(null);
       const response = await getBestNetwork(coords.latitude, coords.longitude, radius);
       
       // Handle 404 (no data) separately from errors
@@ -106,20 +108,25 @@ export default function Best() {
         }
         // This is not an error - just no data available
         setProvidersData([]);
+        setQualityWarning(null);
         return;
       }
       
       if (response.success && response.allProviders && response.allProviders.length > 0) {
         setProvidersData(response.allProviders);
         setSearchRadius(radius); // Remember successful radius
+        // Set quality warning if backend indicates poor data quality
+        setQualityWarning(response.qualityWarning || null);
       } else {
         setProvidersData([]);
+        setQualityWarning(null);
       }
     } catch (err) {
       // Real errors only (network issues, timeouts, server errors)
       console.error('API error:', err);
       setError(err.message || 'Failed to fetch network data');
       setProvidersData([]);
+      setQualityWarning(null);
     }
   };
 
@@ -263,6 +270,14 @@ export default function Best() {
         {/* Providers List */}
         {providersData.length > 0 && (
           <>
+            {/* Quality Warning Banner */}
+            {qualityWarning && (
+              <View style={styles.warningBanner}>
+                <MaterialIcons name="warning" size={20} color={COLORS.warning} />
+                <Text style={styles.warningText}>{qualityWarning}</Text>
+              </View>
+            )}
+
             {/* Best Provider */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>RECOMMENDED</Text>
@@ -496,6 +511,27 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: FONT_SIZES.small,
     color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.warning + '10',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.warning + '40',
+    marginBottom: SPACING.lg,
+  },
+  
+  warningText: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textPrimary,
     lineHeight: 18,
   },
   
