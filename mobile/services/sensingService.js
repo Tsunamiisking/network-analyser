@@ -20,10 +20,14 @@ import * as Cellular from "expo-cellular";
 import * as Location from "expo-location";
 import * as Network from "expo-network";
 import { Platform } from "react-native";
+import { API_BASE_URL as CONFIG_API_BASE_URL } from "../config/api";
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://your-backend.onrender.com";
+// Use the centralized API config (http://172.20.10.4:3000/api)
+// Strip /api suffix for health endpoint since it's at root level
+const API_BASE_URL = CONFIG_API_BASE_URL.replace('/api', '');
+console.log(`🔧 Sensing Service initialized. Health endpoint: ${API_BASE_URL}/health`);
 const SENSING_INTERVAL_MS = 5 * 60 * 1000;       // 5 minutes — normal cycle
 const EMERGENCY_INTERVAL_MS = 60 * 1000;          // 1 minute — triggered on signal drop
 const RSRP_DROP_THRESHOLD_DBM = 10;               // Emergency cycle trigger threshold
@@ -63,15 +67,18 @@ async function measureLatency() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), LATENCY_PING_TIMEOUT_MS);
 
-    await fetch(`${API_BASE_URL}/health`, {
+    const response = await fetch(`${API_BASE_URL}/health`, {
       method: "GET",
       signal: controller.signal,
       cache: "no-store",
     });
 
     clearTimeout(timeout);
-    return Date.now() - start;
-  } catch {
+    const latency = Date.now() - start;
+    console.log(`📡 Latency measurement: ${latency}ms (pinging ${API_BASE_URL}/health)`);
+    return latency;
+  } catch (error) {
+    console.error('❌ Latency test failed:', error.message);
     return null; // Timeout or no connection
   }
 }
@@ -79,6 +86,7 @@ async function measureLatency() {
 // ─── CELLULAR METADATA ───────────────────────────────────────────────────────
 // Reads carrier name and network generation via expo-cellular.
 // Returns safe fallback strings on permission denial or unsupported hardware.
+// NOTE: iOS 12+ blocks carrier name API for privacy. Android works normally.
 
 async function getCellularMetadata() {
   try {
@@ -96,12 +104,23 @@ async function getCellularMetadata() {
       [Cellular.CellularGeneration.UNKNOWN]: "Unknown",
     };
 
+    // iOS returns null/empty for carrier name due to privacy restrictions
+    // Clean up empty strings, null, undefined, or placeholder values
+    let providerName = carrier;
+    if (!providerName || providerName.trim() === '' || providerName === '--') {
+      providerName = Platform.OS === 'ios' ? 'iOS Carrier' : 'Unknown';
+    }
+
     return {
-      provider: carrier || "Unknown",
+      provider: providerName,
       networkType: generationMap[generation] || "Unknown",
     };
-  } catch {
-    return { provider: "Unknown", networkType: "Unknown" };
+  } catch (error) {
+    console.warn('Failed to get cellular metadata:', error);
+    return { 
+      provider: Platform.OS === 'ios' ? 'iOS Carrier' : 'Unknown', 
+      networkType: "Unknown" 
+    };
   }
 }
 
@@ -156,6 +175,14 @@ export async function assembleTelemetryPacket() {
   if (!location) return null; // Cannot submit without GPS
 
   const signalStrength = latencyToSignalStrength(latencyMs);
+  
+  console.log(`📊 Telemetry Summary:
+    Latency: ${latencyMs}ms
+    Signal Strength: ${signalStrength} dBm
+    Provider: ${cellular.provider}
+    Network Type: ${cellular.networkType}
+    Location: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}
+  `);
 
   return {
     // Core required fields (always populated)
