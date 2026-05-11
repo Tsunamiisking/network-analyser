@@ -98,6 +98,14 @@ export default function Best() {
       setQualityWarning(null);
       const response = await getBestNetwork(coords.latitude, coords.longitude, radius);
       
+      console.log('📊 Best Network Response:', {
+        success: response.success,
+        bestProvider: response.bestProvider?.provider,
+        avgSignal: response.bestProvider?.avgSignalStrength,
+        qualityWarning: response.qualityWarning,
+        providersCount: response.allProviders?.length
+      });
+      
       // Handle 404 (no data) separately from errors
       if (response.statusCode === 404 || !response.success) {
         // If first attempt with 2km failed, try expanding to 5km automatically
@@ -117,6 +125,10 @@ export default function Best() {
         setSearchRadius(radius); // Remember successful radius
         // Set quality warning if backend indicates poor data quality
         setQualityWarning(response.qualityWarning || null);
+        
+        if (response.qualityWarning) {
+          console.log('⚠️ Quality Warning Set:', response.qualityWarning);
+        }
       } else {
         setProvidersData([]);
         setQualityWarning(null);
@@ -516,23 +528,23 @@ const styles = StyleSheet.create({
   
   warningBanner: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: SPACING.sm,
-    backgroundColor: COLORS.warning + '10',
+    backgroundColor: COLORS.warning + '20',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.warning + '40',
+    borderWidth: 2,
+    borderColor: COLORS.warning,
     marginBottom: SPACING.lg,
   },
   
   warningText: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: FONT_SIZES.small,
+    fontSize: FONT_SIZES.body,
     color: COLORS.textPrimary,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   
   section: {

@@ -4,11 +4,13 @@ import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, SHADOWS, getSignalColor } f
 
 export default function ProviderCard({ provider, avgSignalStrength, sampleCount, coverage, isBest = false }) {
   // Calculate coverage from signal strength if not provided
+  // Matches backend quality classification thresholds
   const calculateCoverage = (signalStrength) => {
-    if (signalStrength >= -70) return 'Excellent';
-    if (signalStrength >= -85) return 'Good';
-    if (signalStrength >= -100) return 'Fair';
-    return 'Poor';
+    if (signalStrength > -85) return 'Excellent';
+    if (signalStrength > -95) return 'Good';
+    if (signalStrength > -105) return 'Fair';
+    if (signalStrength > -115) return 'Poor';
+    return 'Very Poor';
   };
   
   const coverageLabel = coverage || calculateCoverage(avgSignalStrength);
@@ -27,6 +29,8 @@ export default function ProviderCard({ provider, avgSignalStrength, sampleCount,
         return '#FB923C'; // Orange
       case 'poor':
         return COLORS.error;
+      case 'very poor':
+        return '#B91C1C'; // Darker red
       default:
         return COLORS.textMuted;
     }
