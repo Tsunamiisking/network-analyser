@@ -391,10 +391,20 @@ exports.bestAggregatedNetwork = async (req, res) => {
       quality: classifySignalQuality(provider.avgSignalStrength)
     }));
 
-    // Check if best network meets minimum quality threshold (-105 dBm)
-    const MINIMUM_QUALITY_THRESHOLD = -105;
+    // Check if best network meets minimum quality threshold (-95 dBm = "Good" or better)
+    // Fair (-95 to -105) or worse will trigger a warning
+    const MINIMUM_QUALITY_THRESHOLD = -95;
     const bestProvider = enrichedData[0];
     const isQualityAcceptable = bestProvider.avgSignalStrength > MINIMUM_QUALITY_THRESHOLD;
+
+    console.log('📊 Best Network Quality Check:', {
+      bestProvider: bestProvider.provider,
+      avgSignal: bestProvider.avgSignalStrength,
+      quality: bestProvider.quality.label,
+      threshold: MINIMUM_QUALITY_THRESHOLD,
+      isAcceptable: isQualityAcceptable,
+      willShowWarning: !isQualityAcceptable
+    });
 
     const response = {
       success: true,
@@ -406,7 +416,7 @@ exports.bestAggregatedNetwork = async (req, res) => {
       bestProvider: bestProvider,
       allProviders: enrichedData,
       qualityWarning: !isQualityAcceptable 
-        ? `Limited data available - best network has ${bestProvider.quality.label.toLowerCase()} signal (${bestProvider.avgSignalStrength} dBm)` 
+        ? `⚠️ Best available network has ${bestProvider.quality.label.toLowerCase()} signal (${bestProvider.avgSignalStrength.toFixed(1)} dBm) - consider improving coverage in this area` 
         : null,
       cached: false
     };

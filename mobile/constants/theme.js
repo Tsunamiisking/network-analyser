@@ -121,11 +121,19 @@ export const PROVIDERS = ['MTN', 'Airtel', 'Glo', '9mobile'];
 export const NETWORK_TYPES = ['2G', '3G', '4G', '5G'];
 
 // SIGNAL STRENGTH THRESHOLDS (in dBm)
+// Matches backend quality classification for consistency
 export const SIGNAL_THRESHOLDS = {
-  strong: -70,       // >= -70 dBm
-  moderate: -85,     // >= -85 dBm
-  weak: -100,        // >= -100 dBm
-  veryWeak: -120,    // < -100 dBm
+  excellent: -85,    // > -85 dBm (Excellent)
+  good: -95,         // > -95 dBm (Good)
+  fair: -105,        // > -105 dBm (Fair)
+  poor: -115,        // > -115 dBm (Poor)
+  veryPoor: -130,    // <= -115 dBm (Very Poor)
+  
+  // Legacy aliases for backward compatibility
+  strong: -85,       // >= -85 dBm
+  moderate: -95,     // >= -95 dBm
+  weak: -105,        // >= -105 dBm
+  veryWeak: -115,    // < -105 dBm
 };
 
 /**
