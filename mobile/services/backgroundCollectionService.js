@@ -4,7 +4,7 @@
  * Manages background network data collection for both iOS and Android.
  * 
  * Features:
- * - 12-minute periodic collection intervals
+ * - 10-minute periodic collection intervals
  * - Battery-aware (skips if battery < 15%)
  * - Offline queue support
  * - Location-based triggers
@@ -29,7 +29,7 @@ import { recordSuccess, recordFailure } from './submissionTracker';
 
 const BACKGROUND_FETCH_TASK = 'background-network-collection';
 const BACKGROUND_LOCATION_TASK = 'background-location-collection';
-const COLLECTION_INTERVAL = 12 * 60; // 12 minutes in seconds
+const COLLECTION_INTERVAL = 10 * 60; // 10 minutes in seconds
 const MIN_BATTERY_LEVEL = 0.15; // Skip if battery below 15%
 const SETTINGS_KEY = 'backgroundCollectionSettings';
 
