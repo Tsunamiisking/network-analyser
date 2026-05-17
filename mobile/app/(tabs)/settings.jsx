@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
 
   sectionTitle: {
     fontFamily: FONTS.semiBold,
-    fontSize: FONT_SIZES.h3,
+    fontSize: FONT_SIZES.title,
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
   },
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
 
   statValue: {
     fontFamily: FONTS.bold,
-    fontSize: FONT_SIZES.h2,
+    fontSize: FONT_SIZES.header,
     color: COLORS.textPrimary,
     marginTop: SPACING.xs,
     textAlign: 'center',

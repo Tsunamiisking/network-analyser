@@ -20,7 +20,7 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontFamily: FONTS.header, // Poppins Bold
-    fontSize: 28, // 24px
+    fontSize: FONT_SIZES.header, // 24px
     color: COLORS.textPrimary,
     padding: 16,
     // textAlign: 'left'

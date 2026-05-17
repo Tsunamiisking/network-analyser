@@ -7,15 +7,18 @@ import {
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import PageHeader from '../../components/PageHeader';
 import CustomPicker from '../../components/CustomPicker';
 import RadioButtonGroup from '../../components/RadioButtonGroup';
-import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS } from '../../constants/theme';
+import { submitReport } from '../../services/api';
+import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 
 const PROVIDER_OPTIONS = [
   { label: 'MTN', value: 'MTN' },
@@ -27,21 +30,27 @@ const PROVIDER_OPTIONS = [
 const ISSUE_TYPE_OPTIONS = [
   { 
     label: 'No Signal', 
-    value: 'NO_SIGNAL',
+    value: 'No Signal',
     icon: 'signal-cellular-off',
     description: 'Device shows no network bars'
   },
   { 
-    label: 'No Internet', 
-    value: 'NO_INTERNET',
+    label: 'No Data', 
+    value: 'No Data',
     icon: 'cloud-off',
-    description: 'Connected but no data access'
+    description: 'Connected but no internet access'
   },
   { 
     label: 'Slow Internet', 
-    value: 'SLOW_INTERNET',
+    value: 'Slow Internet',
     icon: 'network-check',
     description: 'Very slow data speeds'
+  },
+  { 
+    label: 'Call Drop', 
+    value: 'Call Drop',
+    icon: 'phone-missed',
+    description: 'Calls frequently disconnect'
   },
 ];
 
@@ -62,38 +71,71 @@ export default function Report() {
       Alert.alert('Missing Field', 'Please select an issue type');
       return;
     }
-    
+
+    // Get current location
     setIsSubmitting(true);
     
-    // TODO: Replace with actual API call
-    // const reportData = {
-    //   provider,
-    //   issueType,
-    //   description: description.trim(),
-    //   timestamp: new Date().toISOString(),
-    //   location: await getCurrentLocation(),
-    // };
-    // await submitOutageReport(reportData);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Request location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location Required',
+          'Please enable location access to submit a report. This helps us identify problem areas.',
+          [{ text: 'OK' }]
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Get current position
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const reportData = {
+        provider,
+        issueType,
+        description: description.trim(),
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      };
+
+      // Submit to backend
+      const response = await submitReport(reportData);
+      
+      setIsSubmitting(false);
+      
+      if (response.success) {
+        Alert.alert(
+          'Report Submitted! 🎉',
+          'Thank you for reporting this network issue. Your feedback helps improve coverage mapping.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Reset form
+                setProvider('');
+                setIssueType('');
+                setDescription('');
+              }
+            }
+          ]
+        );
+      } else {
+        throw new Error(response.message || 'Failed to submit report');
+      }
+      
+    } catch (error) {
+      console.error('Report submission failed:', error);
       setIsSubmitting(false);
       Alert.alert(
-        'Report Submitted',
-        'Thank you for reporting this network issue. We will investigate.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Reset form
-              setProvider('');
-              setIssueType('');
-              setDescription('');
-            }
-          }
-        ]
+        'Submission Failed',
+        error.message || 'Failed to submit report. Please check your connection and try again.',
+        [{ text: 'OK' }]
       );
-    }, 1500);
+    }
   };
   
   const isFormValid = provider && issueType;
@@ -114,7 +156,9 @@ export default function Report() {
         >
           {/* Header Info */}
           <View style={styles.headerInfo}>
-            <MaterialIcons name="report-problem" size={48} color={COLORS.warning} />
+            <View style={styles.iconContainer}>
+              <MaterialIcons name="report-problem" size={56} color={COLORS.warning} />
+            </View>
             <Text style={styles.headerTitle}>Report Network Issue</Text>
             <Text style={styles.headerSubtitle}>
               Help us identify and resolve connectivity problems in your area
@@ -171,7 +215,7 @@ export default function Report() {
             >
               {isSubmitting ? (
                 <>
-                  <MaterialIcons name="hourglass-empty" size={20} color={COLORS.textPrimary} />
+                  <ActivityIndicator size="small" color={COLORS.textPrimary} />
                   <Text style={styles.submitButtonText}>Submitting...</Text>
                 </>
               ) : (
@@ -184,9 +228,9 @@ export default function Report() {
             
             {/* Info Note */}
             <View style={styles.infoNote}>
-              <MaterialIcons name="info-outline" size={16} color={COLORS.info} />
+              <MaterialIcons name="info-outline" size={18} color={COLORS.info} />
               <Text style={styles.infoNoteText}>
-                Your location will be automatically included to help us map network issues
+                Your location will be automatically captured when you submit to help identify problem areas
               </Text>
             </View>
           </View>
@@ -217,15 +261,26 @@ const styles = StyleSheet.create({
   
   headerInfo: {
     alignItems: 'center',
-    paddingVertical: SPACING.xl,
+    paddingVertical: SPACING.lg,
+    paddingTop: SPACING.md,
+  },
+  
+  iconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.warning + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
   
   headerTitle: {
     fontFamily: FONTS.header,
     fontSize: FONT_SIZES.header,
     color: COLORS.textPrimary,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
   },
   
   headerSubtitle: {
@@ -253,14 +308,15 @@ const styles = StyleSheet.create({
   
   textArea: {
     backgroundColor: COLORS.card,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     fontFamily: FONTS.regular,
     fontSize: FONT_SIZES.body,
     color: COLORS.textPrimary,
-    minHeight: 100,
+    minHeight: 120,
+    maxHeight: 200,
   },
   
   charCount: {
@@ -277,9 +333,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: SPACING.sm,
     backgroundColor: COLORS.info,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.md + 2,
     borderRadius: RADIUS.md,
-    marginTop: SPACING.md,
+    marginTop: SPACING.lg,
+    ...SHADOWS.medium,
   },
   
   submitButtonDisabled: {
@@ -301,11 +358,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: SPACING.sm,
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.info + '10',
     padding: SPACING.md,
     borderRadius: RADIUS.md,
     marginTop: SPACING.lg,
-    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: COLORS.info + '30',
+    borderLeftWidth: 4,
     borderLeftColor: COLORS.info,
   },
   
