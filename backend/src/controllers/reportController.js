@@ -33,6 +33,16 @@ exports.submitReport = async (req, res) => {
       },
     });
 
+    // Invalidate all cached GET /api/reports responses so the new report
+    // is visible immediately on the next fetch (no stale-cache delay).
+    try {
+      const keys = await redisClient.keys("reports:*");
+      if (keys.length > 0) await redisClient.del(keys);
+    } catch (redisError) {
+      console.error("Redis cache invalidation error:", redisError);
+      // Non-fatal — report was saved; cache will expire on its own TTL
+    }
+
     res.status(201).json({
       success: true,
       message: "Report submitted successfully",
