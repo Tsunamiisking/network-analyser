@@ -7,11 +7,13 @@ import {
   ScrollView,
   Alert 
 } from 'react-native';
-import React, { useState, useEffect, useRef } from 'react';
-import MapView, { Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
+import MapView, { Circle, Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { 
   getAggregatedHeatmap, 
+  getReports,
   submitNetworkData 
 } from '../../services/api';
 import { assembleTelemetryPacket } from '../../services/sensingService';
@@ -28,6 +30,14 @@ import {
   getSignalColor 
 } from '../../constants/theme';
 import { PROVIDERS, SIGNAL_QUALITY_LEVELS } from '../../config/api';
+
+// Issue type visual config for report overlay markers
+const ISSUE_CONFIG = {
+  'No Signal':     { color: '#EF4444', icon: 'signal-wifi-off' },
+  'No Data':       { color: '#F97316', icon: 'wifi-off' },
+  'Slow Internet': { color: '#EAB308', icon: 'signal-wifi-2-bar' },
+  'Call Drop':     { color: '#A855F7', icon: 'call-end' },
+};
 
 // Signal quality ranges aligned with the system-wide thresholds
 // Must match: networkController.js classifySignalQuality, theme.js SIGNAL_THRESHOLDS
@@ -67,8 +77,20 @@ export default function Heatmap() {
   const [showLegend, setShowLegend] = useState(true);
   const [isContributing, setIsContributing] = useState(false);
   const [bgCollectionStatus, setBgCollectionStatus] = useState(null);
+  // Report overlay state
+  const [reports, setReports] = useState([]);
+  const [showReports, setShowReports] = useState(true);
 
-  // Load data when mode, provider, or quality changes
+  // Reload data whenever this tab gains focus so reports/heatmap stay fresh
+  // after the user submits something from another tab.
+  useFocusEffect(
+    useCallback(() => {
+      loadMapData();
+      loadBackgroundStatus();
+    }, [mode, provider, qualityLevel])
+  );
+
+  // Also reload when filter controls change
   useEffect(() => {
     loadMapData();
     loadBackgroundStatus();
@@ -195,11 +217,15 @@ export default function Heatmap() {
       const filters = {};
       if (provider !== 'All') filters.provider = provider;
 
-      const result = await getAggregatedHeatmap({
-        precision: 6,
-        ...filters,
-      });
+      // Fetch heatmap and user reports in parallel
+      const [result, reportsResult] = await Promise.all([
+        getAggregatedHeatmap({ precision: 6, ...filters }),
+        getReports(provider !== 'All' ? { provider } : {}),
+      ]);
+
       const allData = result.data || [];
+      // Reports are qualitative event markers — stored separately from signal measurements
+      setReports(reportsResult.data || []);
 
       let data = allData;
 
@@ -225,6 +251,54 @@ export default function Heatmap() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Render user-submitted issue report markers on the map.
+  // These are qualitative event markers, distinct from the quantitative signal heatmap.
+  const renderReportMarkers = () => {
+    if (!showReports) return null;
+    return reports.map((report, index) => {
+      const lat = report.location?.coordinates?.[1];
+      const lng = report.location?.coordinates?.[0];
+      if (!lat || !lng) return null;
+
+      const config = ISSUE_CONFIG[report.issueType] || { color: COLORS.textMuted, icon: 'report-problem' };
+      const timeAgo = (() => {
+        if (!report.timestamp) return '';
+        const diff = new Date() - new Date(report.timestamp);
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        return `${Math.floor(hrs / 24)}d ago`;
+      })();
+
+      return (
+        <Marker
+          key={`report-${index}`}
+          coordinate={{ latitude: lat, longitude: lng }}
+          anchor={{ x: 0.5, y: 0.5 }}
+        >
+          {/* Custom pin: colored circle with icon */}
+          <View style={[styles.reportPin, { backgroundColor: config.color }]}>
+            <MaterialIcons name={config.icon} size={12} color="#fff" />
+          </View>
+
+          {/* Callout shown on tap */}
+          <Callout tooltip>
+            <View style={styles.reportCallout}>
+              <Text style={[styles.reportCalloutIssue, { color: config.color }]}>
+                {report.issueType}
+              </Text>
+              <Text style={styles.reportCalloutProvider}>{report.provider} · {timeAgo}</Text>
+              {report.description ? (
+                <Text style={styles.reportCalloutDesc}>{report.description}</Text>
+              ) : null}
+            </View>
+          </Callout>
+        </Marker>
+      );
+    }).filter(Boolean);
   };
 
   const renderHeatmapCircles = () => {
@@ -316,6 +390,8 @@ export default function Heatmap() {
         {!loading && mode === MODES.HEATMAP && renderHeatmapCircles()}
         {!loading && mode === MODES.DEAD_ZONES && renderDeadZoneCircles()}
         {!loading && mode === MODES.QUALITY && renderQualityClusters()}
+        {/* Report overlay: user-reported issues as pins, always visible on all modes */}
+        {renderReportMarkers()}
       </MapView>
 
       {/* Loading Overlay */}
@@ -487,8 +563,36 @@ export default function Heatmap() {
                 </Text>
                 <Text style={styles.statLabel}>Readings</Text>
               </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{reports.length}</Text>
+                <Text style={styles.statLabel}>Reports</Text>
+              </View>
             </View>
           )}
+
+          {/* Report overlay toggle row */}
+          <TouchableOpacity
+            style={styles.reportToggleRow}
+            onPress={() => setShowReports(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.reportToggleLeft}>
+              <MaterialIcons
+                name="report-problem"
+                size={16}
+                color={showReports ? '#EF4444' : COLORS.textMuted}
+              />
+              <Text style={[styles.reportToggleLabel, showReports && styles.reportToggleLabelActive]}>
+                Show Issue Reports
+              </Text>
+              {reports.length === 0 && (
+                <Text style={styles.reportToggleHint}> — none submitted yet</Text>
+              )}
+            </View>
+            <View style={[styles.reportToggleSwitch, showReports && styles.reportToggleSwitchOn]}>
+              <View style={[styles.reportToggleThumb, showReports && styles.reportToggleThumbOn]} />
+            </View>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -582,7 +686,23 @@ export default function Heatmap() {
                   </Text>
                 </View>
               </>
-            )}
+            )}  
+          </View>
+
+          {/* Report overlay legend — always shown */}
+          <View style={[styles.legendNote, { marginTop: SPACING.md, marginBottom: SPACING.sm }]}>
+            <MaterialIcons name="report-problem" size={12} color={COLORS.textMuted} />
+            <Text style={styles.legendNoteText}>
+              Pins = user-reported issues (tap to see details)
+            </Text>
+          </View>
+          <View style={styles.legendItems}>
+            {Object.entries(ISSUE_CONFIG).map(([issueType, cfg]) => (
+              <View key={issueType} style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: cfg.color }]} />
+                <Text style={styles.legendText}>{issueType}</Text>
+              </View>
+            ))}
           </View>
         </View>
       )}
@@ -955,6 +1075,93 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     ...SHADOWS.lg,
     zIndex: 3,
+  },
+  reportToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  reportToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    flex: 1,
+  },
+  reportToggleLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textSecondary,
+  },
+  reportToggleLabelActive: {
+    color: '#EF4444',
+  },
+  reportToggleHint: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.tiny,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
+  },
+  reportToggleSwitch: {
+    width: 36,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.border,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  reportToggleSwitchOn: {
+    backgroundColor: '#EF444460',
+  },
+  reportToggleThumb: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.textMuted,
+  },
+  reportToggleThumbOn: {
+    backgroundColor: '#EF4444',
+    alignSelf: 'flex-end',
+  },
+  reportPin: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    ...SHADOWS.md,
+  },
+  reportCallout: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+    minWidth: 160,
+    maxWidth: 220,
+    ...SHADOWS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  reportCalloutIssue: {
+    fontFamily: FONTS.headerSemibold,
+    fontSize: FONT_SIZES.body,
+    marginBottom: 2,
+  },
+  reportCalloutProvider: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  reportCalloutDesc: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
   },
   refreshButton: {
     position: 'absolute',
