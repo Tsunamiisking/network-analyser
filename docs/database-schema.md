@@ -8,62 +8,73 @@ The system uses MongoDB as the primary database, leveraging its geospatial index
 
 ### 1. networkdata
 
-Stores individual network signal measurements from mobile clients.
+Stores individual network signal measurements submitted by mobile clients (both foreground and background collection).
 
 **Schema:**
 ```javascript
 {
   _id: ObjectId,
-  signalStrength: Number,      // dBm value (-120 to -20)
+  provider: String,            // Nigerian carrier: "MTN", "Airtel", "Glo", "9mobile"
+  signalStrength: Number,      // dBm proxy derived from latency measurement
+  networkType: String,         // "2G", "3G", "4G", "5G", "Unknown"
   location: {
     type: "Point",
-    coordinates: [Number, Number]  // [longitude, latitude]
+    coordinates: [Number, Number]  // [longitude, latitude] — GeoJSON order
   },
-  geohash: String,             // 6-character geohash (~1.2km precision)
-  provider: String,            // Network provider name (e.g., "MTN", "Airtel")
-  networkType: String,         // "3G", "4G", "5G"
-  timestamp: Date              // Measurement time (auto-generated)
+  locationName: String,        // Human-readable name, e.g. "Victoria Island, Lagos" (nullable)
+  geohash: String,             // 6-character geohash (~1.2km × 0.6km cell), auto-generated
+  rsrp: Number,                // Reference Signal Received Power (dBm), 3GPP range: -44 to -140
+                               // null on iOS and Expo managed workflow (OS restriction)
+  rsrq: Number,                // Reference Signal Received Quality (dB), null when unavailable
+  connectivityFlag: Boolean,   // false = device had no data connection at measurement time
+                               // Captures dead-zone / blackout readings (anti-survivorship-bias)
+  deviceId: String,            // Anonymous UUID stored in AsyncStorage (not linked to identity)
+  timestamp: Date              // Server-side insertion time (auto-generated)
 }
 ```
 
 **Indexes:**
 ```javascript
-// Geospatial index for location queries
-db.networkdata.createIndex({ location: "2dsphere" })
-
-// Geohash index for clustering queries
-db.networkdata.createIndex({ geohash: 1 })
-
-// Compound index for provider queries
-db.networkdata.createIndex({ provider: 1, timestamp: -1 })
-
-// Index for time-based queries and cleanup
-db.networkdata.createIndex({ timestamp: -1 })
+db.networkdata.createIndex({ location: "2dsphere" })          // Geospatial queries
+db.networkdata.createIndex({ geohash: 1 })                    // Heatmap aggregation
+db.networkdata.createIndex({ deviceId: 1, timestamp: -1 })    // Per-device history
+db.networkdata.createIndex({ connectivityFlag: 1 })           // Dead zone queries
+db.networkdata.createIndex({ provider: 1, geohash: 1, timestamp: -1 }) // Aggregated heatmap
 ```
 
-**Geohash Precision:**
-- Precision 6 = ~1.2km × 0.6km cells
-- Used for efficient clustering in aggregated heatmap queries
-- Generated automatically on data insertion
+**Signal Strength Note:**
+True RSRP access is unavailable in Expo managed workflow. `signalStrength` is a
+latency-to-dBm proxy computed by the sensing engine:
 
-**Data Retention:**
-- Raw data: 90 days (recommended)
-- Aggregated data: 2 years
-- Automatic TTL index for cleanup (optional)
+| Latency (ms) | Proxy dBm | Quality     |
+|-------------|-----------|-------------|
+| < 50        | −55       | Excellent   |
+| 50–100      | −70       | Good        |
+| 100–200     | −85       | Fair        |
+| 200–400     | −100      | Poor        |
+| > 400       | −115      | Very Poor   |
+| Timeout     | −130      | Blackout    |
+
+**Geohash Precision:**
+- Precision 6 = ~1.2 km × 0.6 km cells
+- Used for geohash-grouping in the aggregated heatmap pipeline
+- Generated server-side via `ngeohash.encode(lat, lng, 6)` on every insertion
 
 **Sample Document:**
 ```json
 {
-  "_id": ObjectId("65f3a1b2c4d5e6f7a8b9c0d1"),
-  "signalStrength": -75,
-  "location": {
-    "type": "Point",
-    "coordinates": [3.3792, 6.5244]
-  },
-  "geohash": "s0dxg1",
+  "_id": "65f3a1b2c4d5e6f7a8b9c0d1",
   "provider": "MTN",
-  "networkType": "5G",
-  "timestamp": ISODate("2026-03-06T10:30:00Z")
+  "signalStrength": -85,
+  "networkType": "4G",
+  "location": { "type": "Point", "coordinates": [3.3792, 6.5244] },
+  "locationName": "Victoria Island, Lagos",
+  "geohash": "s0dxg1",
+  "rsrp": null,
+  "rsrq": null,
+  "connectivityFlag": true,
+  "deviceId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": "2026-05-17T10:30:00.000Z"
 }
 ```
 
@@ -71,102 +82,60 @@ db.networkdata.createIndex({ timestamp: -1 })
 
 ### 2. reports
 
+Stores manual outage reports submitted by users via the Report tab. Designed for
+intermittent issues that background auto-collection may miss.
+
 **Schema:**
 ```javascript
 {
   _id: ObjectId,
-  provider: String,
+  provider: String,    // Required. Enum: "MTN" | "Airtel" | "Glo" | "9mobile"
+  issueType: String,   // Required. Enum: "No Signal" | "Slow Internet" | "Call Drop" | "No Data"
+  description: String, // Optional free-text detail (trimmed, no max length enforced)
   location: {
     type: "Point",
-    coordinates: [Number, Number]
+    coordinates: [Number, Number]  // [longitude, latitude] — GeoJSON order
   },
-  severity: String,            // "minor", "major", "critical"
-  status: String,              // "active", "investigating", "resolved"
-  description: String,
-  affectedServices: [String],  // ["voice", "data", "sms"]
-  reportedAt: Date,
-  reportedBy: String,          // User ID or anonymous identifier
-  confirmations: Number,       // Number of users confirming
-  resolvedAt: Date,            // When marked as resolved
-  metadata: {
-    affectedRadius: Number,    // Estimated affected area in km
-    durationMinutes: Number
-  }
+  timestamp: Date,     // Submission time (auto-generated server-side)
+  occurredAt: Date,    // Optional: when the issue actually occurred (may predate submission)
+                       // null if user selected "Just now" or left blank
 }
 ```
 
 **Indexes:**
 ```javascript
-db.outages.createIndex({ location: "2dsphere" })
-db.outages.createIndex({ provider: 1, status: 1 })
-db.outages.createIndex({ reportedAt: -1 })
+db.reports.createIndex({ location: "2dsphere" })
+db.reports.createIndex({ provider: 1, timestamp: -1 })
 ```
+
+**occurredAt vs timestamp:**
+The form lets users specify how long ago an issue occurred (e.g. "~1 hour ago").
+`occurredAt` stores that computed time; `timestamp` always reflects when the report
+was saved. The heatmap callout uses `occurredAt` as the primary event time and
+displays a "reported X later" note when the lag exceeds 5 minutes.
 
 **Sample Document:**
 ```json
 {
-  "_id": ObjectId("65f3a1b2c4d5e6f7a8b9c0d2"),
-  "provider": "AT&T",
-  "location": {
-    "type": "Point",
-    "coordinates": [-122.4194, 37.7749]
-  },
-  "severity": "major",
-  "status": "active",
-  "description": "Complete loss of data service",
-  "affectedServices": ["data"],
-  "reportedAt": ISODate("2026-03-03T08:15:00Z"),
-  "reportedBy": "anonymous_user_12345",
-  "confirmations": 23,
-  "resolvedAt": null,
-  "metadata": {
-    "affectedRadius": 5.0
-  }
+  "_id": "65f3a1b2c4d5e6f7a8b9c0d2",
+  "provider": "MTN",
+  "issueType": "No Signal",
+  "description": "No bars at all near the market",
+  "location": { "type": "Point", "coordinates": [3.8056, 7.3780] },
+  "timestamp": "2026-05-17T22:40:46.594Z",
+  "occurredAt": "2026-05-17T21:40:46.000Z"
 }
 ```
 
 ---
 
-### 3. aggregations (Pre-computed)
+### Note on Aggregations
 
-Stores pre-aggregated statistics for faster queries.
-
-**Schema:**
-```javascript
-{
-  _id: ObjectId,
-  aggregationType: String,     // "hourly", "daily", "weekly"
-  period: Date,                // Start of aggregation period
-  provider: String,
-  region: {
-    type: "Polygon",
-    coordinates: [[[Number, Number]]]
-  },
-  statistics: {
-    avgSignalStrength: Number,
-    minSignalStrength: Number,
-    maxSignalStrength: Number,
-    stdDeviation: Number,
-    measurementCount: Number,
-    connectionTypes: {
-      "5G": Number,
-      "4G": Number,
-      "LTE": Number
-    }
-  },
-  computedAt: Date
-}
-```
-
-**Indexes:**
-```javascript
-db.aggregations.createIndex({ 
-  aggregationType: 1, 
-  provider: 1, 
-  period: -1 
-})
-db.aggregations.createIndex({ region: "2dsphere" })
-```
+There is no separate pre-computed aggregations collection. All heatmap aggregation
+is performed **on-demand** via MongoDB aggregation pipelines grouped by `geohash`
+(precision 6). Results are cached in Redis for 5 minutes (TTL = 300 s) with cache
+keys of the form `heatmap:aggregated:*`. This removes the need for a scheduled
+batch job and keeps the schema simple.
 
 ---
 
@@ -211,19 +180,32 @@ db.users.createIndex({ apiKey: 1 }, { unique: true })
 
 ## Geospatial Queries
 
-### Find measurements within radius
+### Find measurements within radius (Nigeria, Lagos example)
 ```javascript
-db.measurements.find({
+db.networkdata.find({
   location: {
     $near: {
-      $geometry: {
-        type: "Point",
-        coordinates: [-122.4194, 37.7749]
-      },
-      $maxDistance: 5000  // 5km in meters
+      $geometry: { type: "Point", coordinates: [3.3792, 6.5244] },
+      $maxDistance: 5000  // 5 km
     }
   }
 })
+```
+
+### Aggregated heatmap by geohash (used by GET /api/networks/heatmap/aggregated)
+```javascript
+db.networkdata.aggregate([
+  { $match: { provider: "MTN" } },
+  {
+    $group: {
+      _id: { $substr: ["$geohash", 0, 6] },
+      medianSignalStrength: { /* percentile approximation */ },
+      count: { $sum: 1 },
+      providers: { $addToSet: "$provider" }
+    }
+  }
+])
+```
 ```
 
 ### Find measurements within bounds

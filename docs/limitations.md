@@ -10,30 +10,46 @@ This document outlines the current limitations, known issues, and planned improv
 
 #### Signal Strength Access
 
-**iOS Limitations**:
-- No public API to access cellular signal strength
-- Core Telephony framework provides limited information
-- Only available through private APIs (not allowed in App Store)
-- Workaround: Use Core Telephony's signal bars (0-5) as proxy
+**Core constraint — no direct RSRP on Expo managed workflow:**
 
-**Android Limitations**:
-- Signal strength API requires `READ_PHONE_STATE` permission
-- Some manufacturers restrict access to detailed network info
-- API behavior varies across Android versions
-- Different signal strength units (dBm, ASU, bars)
+The Expo managed workflow does not expose the Android `SignalStrength` or iOS
+`CTTelephonyNetworkInfo` RSRP APIs. Both platforms return null from `expo-cellular`
+for raw signal strength. As a result, the application uses an **active latency-to-dBm
+proxy**: it pings the backend health endpoint and maps round-trip time to a dBm-equivalent
+signal quality value.
 
-**Current Approach**:
 ```javascript
-// iOS: Limited data available
-import * as Network from 'expo-network';
-// Only provides connection type, not signal strength
-
-// Android: More data available but requires permissions
-// Can access signal strength via native modules
-
-// Workaround: Rely on user-reported measurements
-// or WiFi signal strength as proxy in some cases
+// sensingService.js — latency to dBm mapping
+function latencyToSignalStrength(latencyMs) {
+  if (latencyMs === null)  return -130; // timeout = blackout proxy
+  if (latencyMs < 50)      return -55;  // Excellent
+  if (latencyMs < 100)     return -70;  // Good
+  if (latencyMs < 200)     return -85;  // Fair
+  if (latencyMs < 400)     return -100; // Poor
+  return -115;                          // Very Poor
+}
 ```
+
+**Implications:**
+- Values are relative quality indicators, not calibrated RSRP measurements
+- High-latency events unrelated to signal (e.g. server cold start) may temporarily
+  depress readings
+- RSRP/RSRQ fields exist in the schema and are accepted from clients that can
+  provide them (e.g. a bare-workflow build with native modules); they are stored
+  as `null` in the current Expo managed build
+
+**Mitigation:**
+- Median aggregation per geohash cell reduces the impact of one-off outliers
+- The 5-tier threshold system is applied consistently to proxy values
+- A future bare-workflow build could replace the proxy with real RSRP via
+  `android.telephony.TelephonyManager.getSignalStrength()`
+
+**iOS Carrier Name (iOS 16+):**
+
+Apple deprecated `CTCarrier` in iOS 16. `Cellular.getCarrierNameAsync()` now returns
+`null` or an empty string on all real iOS devices. The app falls back to `"iOS Carrier"`
+as the provider name, which means iOS-sourced measurements are excluded from
+per-carrier analysis. Android is the primary target platform.
 
 #### GPS Accuracy
 
@@ -56,22 +72,22 @@ if (location.coords.accuracy > 100) {
 
 #### Background Limitations
 
-**iOS Background Restrictions**:
-- Limited background execution time (3 minutes after app backgrounds)
-- Background location updates drain battery significantly
-- Must use "always" location permission (harder to get user approval)
-- App may be terminated after prolonged background use
+**iOS Background Restrictions:**
+- `expo-background-fetch` uses Apple's `BGAppRefreshTask`, which has a
+  **system-enforced minimum interval of approximately 15 minutes** regardless
+  of the app's requested interval (10 minutes). iOS learns usage patterns over
+  time and may extend this further.
+- Background location access requires "Always Allow" permission, which Apple
+  makes intentionally difficult to obtain (requires user to navigate into Settings).
+- The app registers both a background fetch task and a background location task;
+  iOS may terminate either if memory pressure is high.
 
-**Android Background Restrictions** (Android 8+):
-- Doze mode limits background processing
-- Background location access restricted
-- Requires foreground service with persistent notification
-- Battery optimization can kill app
-
-**Impact**:
-- Cannot collect measurements continuously in background
-- Must balance data collection frequency with battery life
-- User must keep app in foreground for optimal data collection
+**Android Background Restrictions (Android 8+):**
+- Doze mode can defer background fetch by up to several minutes.
+- Battery optimisation settings vary by manufacturer (MIUI, One UI, etc.) and
+  may kill background tasks entirely unless the user whitelists the app.
+- The 10-minute `COLLECTION_INTERVAL` is honoured on most Android devices in
+  normal power mode.
 
 ### Database Limitations
 
@@ -117,37 +133,23 @@ db.aggregations.find({ region: geohash.substring(0, 4) });
 
 ### API Limitations
 
-#### Rate Limiting
+### Authentication & Data Trust
 
-**Current Limits**:
-- Mobile clients: 100 requests/minute (may be too restrictive)
-- Web dashboard: 500 requests/minute
-- Batch endpoint: 10 requests/minute
+The API has no authentication layer. Any client can submit measurements. Data
+trust is achieved through:
+- **Median aggregation** per geohash cell (outliers have limited impact)
+- **Geographic bounding box validation** (coordinates outside Nigeria are rejected)
+- **RSRP range validation** (3GPP spec: –44 to –140 dBm)
+- **Anonymous device IDs** for per-device rate limiting and deduplication
 
-**Issues**:
-- Legitimate high-frequency use cases may hit limits
-- No distinction between read and write operations
-- IP-based limiting can block multiple users behind NAT
+A future version could add API-key-based throttling per device to prevent flooding.
 
-**Planned Improvements**:
-- Per-user rate limiting with API keys
-- Separate limits for different endpoint types
-- Burst capacity for temporary spikes
+### Geographic Scope
 
-#### Real-Time Updates
-
-**Current Limitation**:
-- No WebSocket or Server-Sent Events support
-- Clients must poll for updates
-- Delays in data availability (cache TTL)
-
-**Impact**:
-- Dashboard not truly "real-time"
-- Higher server load from polling
-- Increased latency for time-sensitive features
-
-**Planned Enhancement**:
-```javascript
+The system validates all submitted coordinates against a Nigeria bounding box
+(lat 4.0–14.0, lng 2.6–15.0). Measurements from outside this range are rejected
+with a 400 error. This is intentional — the project is scoped to Nigerian mobile
+network carriers (MTN, Airtel, Glo, 9mobile).
 // WebSocket support for live updates
 io.on('connection', (socket) => {
   socket.on('subscribe:region', (bounds) => {

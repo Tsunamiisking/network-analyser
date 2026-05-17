@@ -33,200 +33,91 @@ The mobile app follows a **layered architecture**:
 ## Project Structure
 
 ```
-mobile-app/
-├── src/
-│   ├── components/       # Reusable UI components
-│   │   ├── SignalMeter.tsx
-│   │   ├── MapView.tsx
-│   │   └── ProviderSelector.tsx
-│   ├── screens/          # Screen components
-│   │   ├── HomeScreen.tsx
-│   │   ├── MapScreen.tsx
-│   │   ├── HistoryScreen.tsx
-│   │   └── SettingsScreen.tsx
-│   ├── services/         # External service integrations
-│   │   ├── api.ts        # Backend API client
-│   │   ├── location.ts   # GPS services
-│   │   ├── network.ts    # Network info services
-│   │   └── storage.ts    # Local storage
-│   ├── store/            # State management
-│   │   ├── slices/
-│   │   │   ├── measurementSlice.ts
-│   │   │   └── settingsSlice.ts
-│   │   └── store.ts
-│   ├── hooks/            # Custom React hooks
-│   │   ├── useLocation.ts
-│   │   ├── useNetworkInfo.ts
-│   │   └── useMeasurement.ts
-│   ├── types/            # TypeScript type definitions
-│   │   └── index.ts
-│   ├── utils/            # Helper functions
-│   │   ├── validators.ts
-│   │   ├── formatters.ts
-│   │   └── constants.ts
-│   └── navigation/       # Navigation configuration
-│       └── AppNavigator.tsx
-├── assets/               # Images, fonts, etc.
-├── app.json             # Expo configuration
-├── package.json
-└── tsconfig.json
+mobile/
+├── app/                        # expo-router file-based routes
+│   ├── _layout.jsx             # Root layout (tab navigator)
+│   ├── index.jsx               # Entry redirect → (tabs)
+│   └── (tabs)/
+│       ├── heatmap.jsx         # Signal heatmap (3 modes + report overlay)
+│       ├── best.jsx            # Best network near me
+│       ├── report.jsx          # Manual outage report form
+│       ├── history.jsx         # Per-device submission history
+│       └── settings.jsx        # Background collection toggle + stats
+├── components/                 # Shared UI components
+│   ├── PageHeader.jsx
+│   ├── ProviderCard.jsx
+│   ├── CustomPicker.jsx
+│   ├── RadioButtonGroup.jsx
+│   └── SignalHistoryCard.jsx
+├── services/                   # Business logic / external integrations
+│   ├── api.js                  # All backend API calls (fetch-based)
+│   ├── sensingService.js       # Signal measurement + latency-to-dBm proxy
+│   ├── backgroundCollectionService.js  # expo-task-manager wrapper
+│   ├── submissionTracker.js    # Success/failure stats (AsyncStorage)
+│   └── appInitService.js       # App startup initialisation
+├── config/
+│   └── api.js                  # API_BASE_URL, provider enums, quality levels
+├── constants/
+│   └── theme.js                # COLORS, FONTS, SPACING, RADIUS, SHADOWS
+└── utils/
+    └── helpers.js              # getDeviceId(), formatters
 ```
 
 ## Core Modules
 
-### 1. Location Service
+### 1. sensingService.js
 
-**Purpose**: Manage GPS tracking and coordinate collection
+**Purpose**: Collect a single network telemetry packet on demand.
 
-**Key Features**:
-- Background location tracking
-- Accuracy filtering (reject coordinates with poor accuracy)
-- Battery optimization (adjustable sampling intervals)
-- Permission handling
+**How it works:**
+1. Reads carrier name + network generation via `expo-cellular`
+2. Gets GPS coordinates via `expo-location`
+3. Runs an active latency test (HTTP ping to backend `/health`) to derive a dBm-proxy signal strength value
+4. Checks `expo-network` for internet reachability (`connectivityFlag`)
+5. Assembles and returns a `TelemetryPacket` ready for submission
 
-**Implementation:**
-```typescript
-// services/location.ts
-import * as Location from 'expo-location';
+**iOS note:** `getCarrierNameAsync()` returns null on iOS 16+ (Apple deprecated `CTCarrier`). The service substitutes `"iOS Carrier"` as a fallback.
 
-export class LocationService {
-  private watchId: any = null;
-  
-  async startTracking(callback: (location: Location.LocationObject) => void) {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      throw new Error('Location permission denied');
-    }
-    
-    this.watchId = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 30000,  // 30 seconds
-        distanceInterval: 50   // 50 meters
-      },
-      callback
-    );
-  }
-  
-  stopTracking() {
-    if (this.watchId) {
-      this.watchId.remove();
-    }
-  }
-}
+### 2. backgroundCollectionService.js
+
+**Purpose**: Register and manage periodic background data collection.
+
+**Key settings:**
+- `COLLECTION_INTERVAL = 10 * 60` (10 minutes, requested; iOS enforces ~15-min minimum)
+- `MIN_BATTERY_LEVEL = 0.15` (skips collection below 15% unless charging)
+- Registers two tasks: `background-network-collection` (BGFetch) + `background-location-collection`
+- Maintains collection stats (totalCollections, failedCollections) in AsyncStorage
+
+**iOS vs Android:**
+- Android: BGFetch fires at the requested interval with reasonable reliability
+- iOS: Interval is system-controlled; the OS learns app usage patterns
+
+### 3. api.js
+
+**Purpose**: All HTTP communication with the backend.
+
+**Key exports:**
+```javascript
+submitNetworkData(data)          // POST /api/networks
+getAggregatedHeatmap(filters)    // GET /api/networks/heatmap/aggregated
+getHeatmapData(filters)          // GET /api/networks/heatmap
+getBestNetwork(lat, lng, radius) // GET /api/networks/best
+getMyHistory(deviceId)           // GET /api/networks/history
+submitReport(reportData)         // POST /api/reports
+getReports(filters)              // GET /api/reports
+getProviderComparison()          // GET /api/analytics/provider-comparison
+getBlackoutRate(start, end)      // GET /api/analytics/blackout-rate
 ```
 
-### 2. Network Info Service
+All calls use the native `fetch` API. `API_BASE_URL` is defined in `config/api.js`.
 
-**Purpose**: Collect cellular network metadata
+### 4. submissionTracker.js
 
-**Key Features**:
-- Signal strength detection
-- Network provider identification
-- Connection type (2G/3G/4G/5G)
-- Network state monitoring
+**Purpose**: Track submission success/failure counts locally (AsyncStorage). Displayed in the Settings tab as a success rate percentage.
 
-**Implementation:**
-```typescript
-// services/network.ts
-import * as Network from 'expo-network';
-import * as Cellular from 'expo-cellular';
+### 5. appInitService.js
 
-export class NetworkInfoService {
-  async getNetworkInfo() {
-    const [networkState, carrier] = await Promise.all([
-      Network.getNetworkStateAsync(),
-      Cellular.getCarrierNameAsync()
-    ]);
-    
-    return {
-      provider: carrier || 'Unknown',
-      connectionType: networkState.type,
-      isInternetReachable: networkState.isInternetReachable
-    };
-  }
-  
-  // Note: Signal strength APIs are limited on mobile platforms
-  // May require native module implementation
-}
-```
-
-### 3. Measurement Service
-
-**Purpose**: Orchestrate data collection and submission
-
-**Key Features**:
-- Periodic measurement collection
-- Data validation before submission
-- Offline queue management
-- Batch upload optimization
-
-**Implementation:**
-```typescript
-// services/measurement.ts
-export class MeasurementService {
-  private queue: Measurement[] = [];
-  
-  async collectMeasurement(): Promise<Measurement> {
-    const [location, networkInfo] = await Promise.all([
-      locationService.getCurrentLocation(),
-      networkService.getNetworkInfo()
-    ]);
-    
-    return {
-      signalStrength: networkInfo.signalStrength,
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      provider: networkInfo.provider,
-      connectionType: networkInfo.connectionType,
-      timestamp: new Date().toISOString(),
-      deviceInfo: {
-        platform: Platform.OS,
-        osVersion: Platform.Version.toString()
-      }
-    };
-  }
-  
-  async submitMeasurement(measurement: Measurement) {
-    try {
-      await apiClient.post('/measurements', measurement);
-    } catch (error) {
-      // Queue for later if offline
-      this.queue.push(measurement);
-      await this.saveQueueToStorage();
-    }
-  }
-  
-  async syncQueue() {
-    if (this.queue.length > 0) {
-      try {
-        await apiClient.post('/measurements/batch', {
-          measurements: this.queue
-        });
-        this.queue = [];
-        await this.clearQueueStorage();
-      } catch (error) {
-        console.error('Queue sync failed:', error);
-      }
-    }
-  }
-}
-```
-
-### 4. API Client
-
-**Purpose**: Handle all backend communication
-
-**Key Features**:
-- Axios-based HTTP client
-- Request/response interceptors
-- Error handling and retry logic
-- Authentication header injection
-
-**Implementation:**
-```typescript
-// services/api.ts
-import axios from 'axios';
+**Purpose**: Called once on app startup to register background tasks and restore settings from AsyncStorage.
 
 const apiClient = axios.create({
   baseURL: 'https://api.network-analyser.com/v1',
@@ -246,205 +137,41 @@ apiClient.interceptors.request.use(async (config) => {
 });
 
 // Response interceptor for error handling
-apiClient.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response?.status === 429) {
-      // Rate limit exceeded
-      return Promise.reject(new Error('Too many requests'));
-    }
-    return Promise.reject(error);
-  }
-);
-```
+## Navigation
 
-### 5. State Management
+The app uses **expo-router v6** with file-based routing. The `app/(tabs)/` directory maps directly to the bottom tab navigator. No manual `React.Navigation` configuration is required — routes are inferred from file names.
 
-**Purpose**: Manage application state using Redux Toolkit
+Key routing behaviour:
+- `app/index.jsx` redirects to `(tabs)/heatmap` on load
+- `useFocusEffect` (from `expo-router`) is used in screens that need to reload data when the user navigates back to a tab (e.g. heatmap reloads signal data on tab focus)
 
-**Key Slices**:
-- Measurements: Current and historical measurements
-- Settings: User preferences and configuration
-- Network: Connection status
+## State Management
 
-**Implementation:**
-```typescript
-// store/slices/measurementSlice.ts
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+State is managed entirely with React hooks — no Redux. Each screen owns its own `useState` / `useEffect` state. Cross-screen shared data (device ID, background settings) is persisted to AsyncStorage and loaded on mount.
 
-export const submitMeasurement = createAsyncThunk(
-  'measurements/submit',
-  async (measurement: Measurement) => {
-    const response = await apiClient.post('/measurements', measurement);
-    return response.data;
-  }
-);
+## Performance Optimisations
 
-const measurementSlice = createSlice({
-  name: 'measurements',
-  initialState: {
-    current: null,
-    history: [],
-    isTracking: false,
-    loading: false
-  },
-  reducers: {
-    setCurrentMeasurement: (state, action) => {
-      state.current = action.payload;
-    },
-    toggleTracking: (state) => {
-      state.isTracking = !state.isTracking;
-    }
-  },
-  extraReducers: (builder) => {
-    builder
-      .addCase(submitMeasurement.pending, (state) => {
-        state.loading = true;
-      })
-      .addCase(submitMeasurement.fulfilled, (state, action) => {
-        state.loading = false;
-        state.history.unshift(action.payload);
-      });
-  }
-});
-```
+- **Median aggregation** at geohash precision 5–6 reduces heatmap render load
+- **5-minute Redis TTL** on all GET endpoints reduces repeated database hits
+- **Battery gate** in background collection: collection is skipped below 15%
+- Map marker rendering is scoped to the current viewport bounding box
 
-## Key Screens
+## Build & Distribution
 
-### 1. Home Screen
-- Current signal strength display
-- Start/stop tracking button
-- Recent measurement summary
-- Quick provider selection
-
-### 2. Map Screen
-- Real-time location marker
-- Signal strength overlay
-- Nearby measurements visualization
-- Offline map tiles (cached)
-
-### 3. History Screen
-- List of submitted measurements
-- Sync status indicator
-- Retry failed submissions
-- Clear history option
-
-### 4. Settings Screen
-- Tracking interval configuration
-- Battery optimization settings
-- Provider selection
-- Privacy settings
-
-## Background Processing
-
-### iOS Background Modes
-- Location updates
-- Background fetch for queue sync
-
-### Android Foreground Service
-- Persistent notification during tracking
-- Prevents system from killing the app
-
-**Implementation:**
-```typescript
-// Background task registration
-import * as BackgroundFetch from 'expo-background-fetch';
-import * as TaskManager from 'expo-task-manager';
-
-const BACKGROUND_SYNC_TASK = 'background-sync';
-
-TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
-  try {
-    await measurementService.syncQueue();
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch (error) {
-    return BackgroundFetch.BackgroundFetchResult.Failed;
-  }
-});
-
-await BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
-  minimumInterval: 15 * 60, // 15 minutes
-  stopOnTerminate: false,
-  startOnBoot: true
-});
-```
-
-## Performance Optimizations
-
-### Battery Efficiency
-- Adaptive sampling based on movement
-- Coalesce location updates
-- Batch API requests
-- Suspend tracking when stationary
-
-### Memory Management
-- Limit history storage (last 100 measurements)
-- Image lazy loading
-- Component memoization
-- Proper cleanup of listeners
-
-### Network Efficiency
-- Compress request payloads
-- Cache API responses
-- Delta sync for updates
-- Respect metered connections
-
-## Error Handling
-
-### Location Errors
-- Permission denied → Show rationale
-- GPS unavailable → Prompt user
-- Poor accuracy → Discard measurement
-
-### Network Errors
-- Offline → Queue measurement
-- Timeout → Retry with backoff
-- Server error → Show user notification
-
-### Validation Errors
-- Invalid signal strength → Reject locally
-- Invalid coordinates → Discard
-- Missing fields → Log error
-
-## Testing Strategy
-
-### Unit Tests
-- Service layer logic
-- Utility functions
-- Redux reducers
-
-### Integration Tests
-- API client with mocked responses
-- Location service with mocked GPS
-- Measurement collection flow
-
-### E2E Tests
-- App launch and permission flow
-- Measurement submission
-- Offline queue sync
-
-## Build and Deployment
-
-### Development Build
 ```bash
-expo start
-```
+# Development
+cd mobile
+npx expo start
 
-### Production Build
-```bash
-# iOS
+# Production build (EAS)
+eas build --platform android --profile production
 eas build --platform ios --profile production
 
-# Android
-eas build --platform android --profile production
-```
-
-### OTA Updates
-```bash
+# OTA update
 eas update --branch production
 ```
 
 ## Related Documentation
 - [System Design](system-design.md)
 - [API Specification](api-specification.md)
-- [Testing](testing.md)
+- [Limitations](limitations.md)

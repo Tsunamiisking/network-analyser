@@ -3,42 +3,70 @@
 ## Base URL
 
 ```
-Production: https://api.network-analyser.com
-Development: http://localhost:3000
+Development: http://<host>:3000/api
 ```
 
-## Authentication
-
-Currently, the API uses API key authentication for mobile clients and JWT tokens for web dashboard admin access.
-
-### Headers
-```
-X-API-Key: <your-api-key>
-Authorization: Bearer <jwt-token>
-```
+All endpoints are prefixed with `/api`. No authentication is required — the API is open and designed for anonymous, crowdsourced contributions.
 
 ## Response Caching
 
-All GET endpoints support Redis caching with a 5-minute TTL. Cached responses include a `cached: true` field.
+GET endpoints are cached in Redis with a 5-minute TTL (300 seconds). Cached responses include `"cached": true`. Cache keys are invalidated on relevant write operations (e.g. submitting a report clears all `reports:*` keys immediately).
 
-## Endpoints
+## Common Response Format
 
-### 1. Network Data
+```json
+{
+  "success": true,
+  "count": 42,
+  "data": [...],
+  "cached": false
+}
+```
 
-#### POST /api/networks
+Errors return:
+```json
+{ "message": "Human-readable error description" }
+```
 
-Submit a new network signal measurement.
+---
+
+## 1. Network Data — `/api/networks`
+
+### POST /api/networks
+
+Submit a new network signal measurement from a mobile client.
 
 **Request Body:**
 ```json
 {
-  "signalStrength": -75,
+  "signalStrength": -85,
+  "provider": "MTN",
+  "networkType": "4G",
   "latitude": 6.5244,
   "longitude": 3.3792,
-  "provider": "MTN",
-  "networkType": "5G"
+  "rsrp": null,
+  "rsrq": null,
+  "connectivityFlag": true,
+  "deviceId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `signalStrength` | Number | ✅ | dBm proxy derived from latency test |
+| `provider` | String | ✅ | Nigerian carriers: MTN, Airtel, Glo, 9mobile |
+| `networkType` | String | ✅ | "2G" / "3G" / "4G" / "5G" / "Unknown" |
+| `latitude` | Number | ✅ | Must be within Nigeria bounding box (4.0–14.0) |
+| `longitude` | Number | ✅ | Must be within Nigeria bounding box (2.6–15.0) |
+| `rsrp` | Number | ❌ | Raw RSRP in dBm (–44 to –140); null on iOS/Expo managed |
+| `rsrq` | Number | ❌ | Raw RSRQ in dB; null when unavailable |
+| `connectivityFlag` | Boolean | ❌ | false = no data connection at time of measurement (default: true) |
+| `deviceId` | String | ❌ | Anonymous UUID for per-device history |
+
+**Validation:**
+- Coordinates rejected outside Nigeria bounding box
+- RSRP rejected outside –44 to –140 dBm (3GPP spec)
+- Geohash (precision 6, ~1.2 km) is auto-generated server-side via `ngeohash`
 
 **Response:** `201 Created`
 ```json
@@ -47,436 +75,246 @@ Submit a new network signal measurement.
   "message": "Network data created successfully",
   "data": {
     "_id": "65f3a1b2c4d5e6f7a8b9c0d1",
-    "signalStrength": -75,
+    "signalStrength": -85,
     "provider": "MTN",
-    "networkType": "5G",
-    "location": {
-      "type": "Point",
-      "coordinates": [3.3792, 6.5244]
-    },
+    "networkType": "4G",
+    "location": { "type": "Point", "coordinates": [3.3792, 6.5244] },
     "geohash": "s0dxg1",
-    "timestamp": "2026-03-06T10:30:00Z"
+    "connectivityFlag": true,
+    "deviceId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "timestamp": "2026-05-17T10:30:00.000Z"
   }
 }
 ```
 
-**Validation Rules:**
-- `signalStrength`: Required, number
-- `latitude`: Required, float, range [-90, 90]
-- `longitude`: Required, float, range [-180, 180]
-- `provider`: Required, string
-- `networkType`: Required, string (e.g., "3G", "4G", "5G")
-
-**Features:**
-- Automatically generates geohash (precision 6, ~1.2km) for efficient clustering
-- Stores location as GeoJSON Point for geospatial queries
-- Timestamp auto-generated if not provided
-
 ---
 
-#### GET /api/networks/heatmap
+### GET /api/networks/heatmap
 
-Retrieve detailed network measurements for heatmap visualization.
+Returns raw measurements (up to 5,000) for heatmap rendering. Prefer the aggregated endpoint for the mobile app — this endpoint is useful for debugging or small datasets.
 
 **Query Parameters:**
-- `provider`: Filter by provider (optional)
-- `startDate`: Start date ISO 8601 (optional)
-- `endDate`: End date ISO 8601 (optional)
-- `minLat`: Minimum latitude for bounding box (optional)
-- `maxLat`: Maximum latitude for bounding box (optional)
-- `minLng`: Minimum longitude for bounding box (optional)
-- `maxLng`: Maximum longitude for bounding box (optional)
 
-**Example Request:**
-```
-GET /api/networks/heatmap?provider=MTN&minLat=6.4&maxLat=6.7&minLng=3.2&maxLng=3.5
-```
+| Param | Type | Notes |
+|-------|------|-------|
+| `provider` | String | Filter by carrier (optional) |
+| `startDate` / `endDate` | ISO 8601 | Time range (optional) |
+| `minLat` / `maxLat` / `minLng` / `maxLng` | Number | Bounding box (optional) |
 
 **Response:** `200 OK`
 ```json
 {
   "success": true,
-  "count": 2547,
+  "count": 312,
   "cached": false,
   "data": [
     {
       "_id": "65f3a1b2c4d5e6f7a8b9c0d1",
-      "signalStrength": -75,
-      "location": {
-        "type": "Point",
-        "coordinates": [3.3792, 6.5244]
-      },
+      "signalStrength": -85,
+      "location": { "type": "Point", "coordinates": [3.3792, 6.5244] },
       "provider": "MTN",
-      "networkType": "5G",
-      "timestamp": "2026-03-06T10:30:00Z"
+      "networkType": "4G",
+      "timestamp": "2026-05-17T10:30:00.000Z"
     }
-    // ... more measurements (max 5000)
   ]
 }
 ```
 
-**Notes:**
-- Results limited to 5000 measurements for performance
-- Cached for 5 minutes
-- Use bounding box filters to reduce result size
-
 ---
 
-#### GET /api/networks/heatmap/aggregated
+### GET /api/networks/heatmap/aggregated
 
-Retrieve geohash-clustered network data for efficient heatmap rendering.
+Returns geohash-clustered network data. Each item represents one geohash cell with aggregated signal statistics. **Primary endpoint used by the mobile heatmap for all three display modes (signal strength / quality level / dead zones).**
 
 **Query Parameters:**
-- `provider`: Filter by provider (optional)
-- `startDate`: Start date ISO 8601 (optional)
-- `endDate`: End date ISO 8601 (optional)
-- `minLat`: Minimum latitude for bounding box (optional)
-- `maxLat`: Maximum latitude for bounding box (optional)
-- `minLng`: Minimum longitude for bounding box (optional)
-- `maxLng`: Maximum longitude for bounding box (optional)
-- `precision`: Geohash precision (default: 5, range: 4-6)
-  - 4 = ~20km boxes
-  - 5 = ~5km boxes
-  - 6 = ~1.2km boxes
 
-**Example Request:**
-```
-GET /api/networks/heatmap/aggregated?provider=MTN&precision=5&minLat=6.4&maxLat=6.7&minLng=3.2&maxLng=3.5
-```
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `provider` | String | — | Filter by carrier (optional) |
+| `precision` | Number | 5 | Geohash precision: 4 (~20 km), 5 (~5 km), 6 (~1.2 km) |
+| `startDate` / `endDate` | ISO 8601 | — | Time range (optional) |
+| `minLat` / `maxLat` / `minLng` / `maxLng` | Number | — | Bounding box (optional) |
 
 **Response:** `200 OK`
 ```json
 {
   "success": true,
-  "count": 42,
-  "precision": 5,
+  "count": 47,
+  "precision": 6,
   "cached": false,
   "data": [
     {
-      "geohash": "s0dxg",
-      "avgSignalStrength": -72.45,
-      "minSignalStrength": -95,
-      "maxSignalStrength": -52,
-      "count": 234,
+      "geohash": "s0dxg1",
+      "medianSignalStrength": -87,
+      "minSignalStrength": -115,
+      "maxSignalStrength": -65,
+      "count": 34,
       "providers": ["MTN", "Airtel"],
-      "networkTypes": ["4G", "5G"],
-      "location": {
-        "type": "Point",
-        "coordinates": [3.3792, 6.5244]
-      }
+      "networkTypes": ["4G"],
+      "location": { "type": "Point", "coordinates": [3.3792, 6.5244] }
     }
-    // ... more clusters
   ]
 }
 ```
 
-**Benefits:**
-- Returns 50-100 clusters instead of thousands of points
-- Faster queries using geohash indexing
-- Better for visualization performance
-- Cached for 5 minutes
+**Note:** `medianSignalStrength` (not average) reduces the impact of outlier readings. Computed in JavaScript after the MongoDB aggregation pipeline.
+
+The mobile app filters this response client-side for the three heatmap modes:
+- **Signal heatmap** — all cells coloured by `medianSignalStrength`
+- **Quality mode** — cells filtered to a specific dBm range (e.g. Excellent: > −85)
+- **Dead zones** — cells where `medianSignalStrength` ≤ −115 dBm
 
 ---
 
-#### GET /api/networks/best
+### GET /api/networks/best
 
-Find the best network provider in a specific area using geospatial aggregation.
+Returns all providers ranked by average signal strength within a radius. Used by the **Best Network** tab to recommend a carrier at the user's current location.
 
 **Query Parameters:**
-- `lat`: Latitude (required)
-- `lng`: Longitude (required)
-- `radius`: Search radius in meters (default: 2000, max: 50000)
 
-**Example Request:**
-```
-GET /api/networks/best?lat=6.5244&lng=3.3792&radius=2000
-```
+| Param | Type | Required | Notes |
+|-------|------|----------|-------|
+| `lat` | Number | ✅ | User latitude |
+| `lng` | Number | ✅ | User longitude |
+| `radius` | Number | ❌ | Metres (default: 2000, max: 50 000) |
 
 **Response:** `200 OK`
 ```json
 {
   "success": true,
-  "location": {
-    "type": "Point",
-    "coordinates": [3.3792, 6.5244]
-  },
-  "radius": 2000,
   "cached": false,
-  "bestProvider": {
-    "provider": "MTN",
-    "avgSignalStrength": -65.23,
-    "minSignalStrength": -85,
-    "maxSignalStrength": -45,
-    "count": 147,
-    "avgDistance": 892.45,
-    "networkTypes": ["4G", "5G"]
-  },
-  "allProviders": [
-    {
-      "provider": "MTN",
-      "avgSignalStrength": -65.23,
-      "minSignalStrength": -85,
-      "maxSignalStrength": -45,
-      "count": 147,
-      "avgDistance": 892.45,
-      "networkTypes": ["4G", "5G"]
-    },
-    {
-      "provider": "Airtel",
-      "avgSignalStrength": -72.10,
-      "minSignalStrength": -92,
-      "maxSignalStrength": -58,
-      "count": 98,
-      "avgDistance": 1124.67,
-      "networkTypes": ["3G", "4G", "5G"]
-    }
-    // ... sorted by avgSignalStrength descending
+  "data": [
+    { "provider": "MTN",    "avgSignalStrength": -72.4, "count": 147, "networkTypes": ["4G","5G"] },
+    { "provider": "Airtel", "avgSignalStrength": -81.2, "count": 98,  "networkTypes": ["3G","4G"] }
   ]
 }
 ```
 
-**Use Cases:**
-- "Which provider is best at my location?"
-- Network recommendation systems
-- Coverage comparison analysis
-
-**Error Response:** `404 Not Found`
-```json
-{
-  "success": false,
-  "message": "No network data found within 2000m of the specified location"
-}
-```
+Returns `404` when no data exists within the requested radius.
 
 ---
 
-### 2. Analytics
-      "signalStrength": -75,
-      "latitude": 37.7749,
-      "longitude": -122.4194,
-      "provider": "Verizon",
-      "connectionType": "5G",
-      "timestamp": "2026-03-03T10:30:00Z"
-    },
-    // ... more measurements
-  ]
-}
-```
+### GET /api/networks/deadzones
 
-**Response:** `201 Created`
+Returns DBSCAN-clustered dead-zone regions — areas where `connectivityFlag = false` readings are spatially dense enough to indicate a persistent no-service zone.
+
+Accepts the same optional bounding box / provider / time query parameters as `/heatmap`.
+
+**Response:** `200 OK`
 ```json
 {
   "success": true,
-  "accepted": 25,
-  "rejected": 0,
-  "message": "Batch processed successfully"
+  "count": 3,
+  "cached": false,
+  "data": [
+    { "centroid": { "type": "Point", "coordinates": [3.38, 6.51] }, "radius": 450, "count": 12 }
+  ]
 }
 ```
 
-**Limits:**
-- Maximum 100 measurements per batch
-- Request size limit: 1MB
-
 ---
 
-#### GET /measurements
+### GET /api/networks/history
 
-Retrieve measurements with optional filters.
+Returns the 50 most recent measurements submitted by a specific device. Used by the **History** tab.
 
 **Query Parameters:**
-- `lat`: Latitude (required with lng, radius)
-- `lng`: Longitude (required with lat, radius)
-- `radius`: Radius in kilometers (default: 5, max: 50)
-- `provider`: Filter by provider name
-- `connectionType`: Filter by connection type
-- `startDate`: Start date (ISO 8601)
-- `endDate`: End date (ISO 8601)
-- `limit`: Results per page (default: 100, max: 1000)
-- `offset`: Pagination offset
 
-**Example Request:**
-```
-GET /measurements?lat=37.7749&lng=-122.4194&radius=10&provider=Verizon&limit=50
-```
+| Param | Type | Required |
+|-------|------|----------|
+| `deviceId` | String | ✅ |
 
 **Response:** `200 OK`
 ```json
 {
   "success": true,
   "count": 50,
-  "total": 1247,
-  "measurements": [
-    {
-      "id": "65f3a1b2c4d5e6f7a8b9c0d1",
-      "signalStrength": -75,
-      "latitude": 37.7749,
-      "longitude": -122.4194,
-      "provider": "Verizon",
-      "connectionType": "5G",
-      "timestamp": "2026-03-03T10:30:00Z"
-    }
-    // ... more measurements
-  ]
-}
-```
-
----
-
-### 2. Analytics
-
-#### GET /analytics/heatmap
-
-Retrieve aggregated data for heatmap visualization.
-
-**Query Parameters:**
-- `bounds`: Map bounds as "swLat,swLng,neLat,neLng"
-- `provider`: Filter by provider (optional)
-- `startDate`: Start date (optional)
-- `endDate`: End date (optional)
-- `gridSize`: Grid cell size in km (default: 1)
-
-**Example Request:**
-```
-GET /analytics/heatmap?bounds=37.7,-122.5,37.8,-122.3&provider=Verizon&gridSize=1
-```
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "gridSize": 1,
-  "cells": [
-    {
-      "latitude": 37.75,
-      "longitude": -122.45,
-      "avgSignalStrength": -72.5,
-      "measurementCount": 145,
-      "providers": ["Verizon", "AT&T"]
-    }
-    // ... more cells
-  ]
-}
-```
-
----
-
-#### GET /analytics/providers
-
-Get aggregated statistics by provider.
-
-**Query Parameters:**
-- `lat`: Latitude (optional)
-- `lng`: Longitude (optional)
-- `radius`: Radius in km (default: 10)
-- `startDate`: Start date (optional)
-- `endDate`: End date (optional)
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "providers": [
-    {
-      "name": "Verizon",
-      "avgSignalStrength": -68.2,
-      "minSignalStrength": -95,
-      "maxSignalStrength": -45,
-      "measurementCount": 5420,
-      "coverageArea": 234.5
-    }
-    // ... more providers
-  ]
-}
-```
-
----
-
-#### GET /analytics/trends
-
-Get time-series trends for signal strength.
-
-**Query Parameters:**
-- `provider`: Provider name (required)
-- `lat`: Latitude (optional)
-- `lng`: Longitude (optional)
-- `radius`: Radius in km (default: 10)
-- `startDate`: Start date (required)
-- `endDate`: End date (required)
-- `interval`: Aggregation interval (hour, day, week, month)
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "provider": "Verizon",
-  "interval": "day",
   "data": [
     {
-      "timestamp": "2026-03-01T00:00:00Z",
-      "avgSignalStrength": -70.5,
-      "measurementCount": 342
+      "signalStrength": -85,
+      "provider": "MTN",
+      "networkType": "4G",
+      "location": { "type": "Point", "coordinates": [3.3792, 6.5244] },
+      "timestamp": "2026-05-17T10:30:00.000Z"
     }
-    // ... more data points
   ]
 }
 ```
 
 ---
 
-### 3. Outages
+## 2. Manual Reports — `/api/reports`
 
-#### POST /outages
+### POST /api/reports
 
-Report a network outage.
+Submit a manual network issue report. Designed for intermittent or past events (call drops, slow internet) that background auto-collection may not capture.
 
 **Request Body:**
 ```json
 {
-  "provider": "AT&T",
-  "latitude": 37.7749,
-  "longitude": -122.4194,
-  "severity": "major",
-  "description": "Complete loss of service",
-  "affectedServices": ["voice", "data"]
+  "provider": "MTN",
+  "issueType": "No Signal",
+  "description": "No bars at all near the market",
+  "latitude": 7.3780,
+  "longitude": 3.8056,
+  "occurredAt": "2026-05-17T21:40:00.000Z"
 }
 ```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `provider` | String | ✅ | Enum: "MTN" \| "Airtel" \| "Glo" \| "9mobile" |
+| `issueType` | String | ✅ | Enum: "No Signal" \| "Slow Internet" \| "Call Drop" \| "No Data" |
+| `latitude` | Number | ✅ | Within Nigeria bounding box |
+| `longitude` | Number | ✅ | Within Nigeria bounding box |
+| `description` | String | ❌ | Free-text additional detail |
+| `occurredAt` | ISO 8601 | ❌ | When the issue occurred; omit or null for real-time reports |
+
+On success, all `reports:*` Redis cache keys are **immediately invalidated** so the new pin appears on the heatmap on the next fetch.
 
 **Response:** `201 Created`
 ```json
 {
   "success": true,
-  "outageId": "65f3a1b2c4d5e6f7a8b9c0d2",
-  "message": "Outage reported successfully"
+  "message": "Report submitted successfully",
+  "data": {
+    "_id": "65f3a1b2c4d5e6f7a8b9c0d3",
+    "provider": "MTN",
+    "issueType": "No Signal",
+    "location": { "type": "Point", "coordinates": [3.8056, 7.3780] },
+    "timestamp": "2026-05-17T22:40:46.594Z",
+    "occurredAt": "2026-05-17T21:40:00.000Z"
+  }
 }
 ```
 
 ---
 
-#### GET /outages
+### GET /api/reports
 
-Retrieve active outages.
+Returns manual reports. Used by the heatmap overlay to render issue-type markers.
 
 **Query Parameters:**
-- `lat`: Latitude (optional)
-- `lng`: Longitude (optional)
-- `radius`: Radius in km (default: 50)
-- `provider`: Filter by provider (optional)
-- `status`: Filter by status (active, resolved)
+
+| Param | Type | Notes |
+|-------|------|-------|
+| `provider` | String | Filter by carrier (optional) |
+| `startDate` / `endDate` | ISO 8601 | Time range (optional) |
+| `minLat` / `maxLat` / `minLng` / `maxLng` | Number | Bounding box (optional) |
 
 **Response:** `200 OK`
 ```json
 {
   "success": true,
-  "outages": [
+  "count": 1,
+  "cached": false,
+  "data": [
     {
-      "id": "65f3a1b2c4d5e6f7a8b9c0d2",
-      "provider": "AT&T",
-      "latitude": 37.7749,
-      "longitude": -122.4194,
-      "severity": "major",
-      "status": "active",
-      "reportCount": 23,
-      "reportedAt": "2026-03-03T08:15:00Z"
+      "provider": "MTN",
+      "issueType": "No Signal",
+      "description": "",
+      "location": { "type": "Point", "coordinates": [3.8056, 7.3780] },
+      "timestamp": "2026-05-17T22:40:46.594Z"
     }
   ]
 }
@@ -484,80 +322,67 @@ Retrieve active outages.
 
 ---
 
-### 4. Admin (Protected)
+## 3. Analytics — `/api/analytics`
 
-#### GET /admin/stats
+### GET /api/analytics/provider-comparison
 
-Get system-wide statistics.
-
-**Requires:** Admin JWT token
+Returns average signal strength and sample count per provider across all collected data. Used by the **Best** tab to give a global overview.
 
 **Response:** `200 OK`
 ```json
 {
   "success": true,
-  "stats": {
-    "totalMeasurements": 1245678,
-    "activeMobileClients": 342,
-    "providers": 5,
-    "avgMeasurementsPerDay": 12456,
-    "lastMeasurementAt": "2026-03-03T12:45:00Z"
-  }
+  "data": [
+    { "provider": "MTN",     "averageSignal": -78.45, "totalSamples": 512 },
+    { "provider": "Airtel",  "averageSignal": -83.10, "totalSamples": 298 },
+    { "provider": "Glo",     "averageSignal": -91.20, "totalSamples": 145 },
+    { "provider": "9mobile", "averageSignal": -94.80, "totalSamples": 88  }
+  ]
+}
+```
+
+Results sorted by `averageSignal` descending (best first).
+
+---
+
+### GET /api/analytics/blackout-rate
+
+Returns the percentage of measurements where `connectivityFlag = false` (device had no data connection), indicating blackout / dead-zone prevalence per provider.
+
+**Query Parameters:**
+
+| Param | Type | Notes |
+|-------|------|-------|
+| `startDate` / `endDate` | ISO 8601 | Optional time range |
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    { "provider": "Glo",  "totalMeasurements": 145, "blackouts": 32, "blackoutRate": 22.07 },
+    { "provider": "MTN",  "totalMeasurements": 512, "blackouts": 18, "blackoutRate": 3.52  }
+  ]
 }
 ```
 
 ---
 
-## Error Responses
+## Signal Quality Tiers
 
-### 400 Bad Request
-```json
-{
-  "success": false,
-  "error": "Invalid request parameters",
-  "details": {
-    "signalStrength": "Must be between -120 and -20"
-  }
-}
-```
+Applied consistently across the mobile app, backend clustering, and documentation:
 
-### 401 Unauthorized
-```json
-{
-  "success": false,
-  "error": "Authentication required"
-}
-```
-
-### 429 Too Many Requests
-```json
-{
-  "success": false,
-  "error": "Rate limit exceeded",
-  "retryAfter": 60
-}
-```
-
-### 500 Internal Server Error
-```json
-{
-  "success": false,
-  "error": "Internal server error",
-  "requestId": "req_123abc"
-}
-```
-
-## Rate Limits
-
-- Mobile clients: 100 requests per minute
-- Web dashboard: 500 requests per minute
-- Batch endpoint: 10 requests per minute
-
-## Versioning
-
-API version is included in the URL path (`/v1`). Breaking changes will result in a new version (`/v2`).
+| Tier | dBm Range | Heatmap Colour |
+|------|-----------|----------------|
+| Excellent | > −85 dBm | Green `#22C55E` |
+| Good | −95 to −85 dBm | Light green `#86EFAC` |
+| Fair | −105 to −95 dBm | Yellow `#EAB308` |
+| Poor | −115 to −105 dBm | Orange `#F97316` |
+| Very Poor | ≤ −115 dBm | Red `#EF4444` |
 
 ## Related Documentation
-- [System Design](system-design.md)
+
 - [Database Schema](database-schema.md)
-- [Security](security.md)
+- [Data Processing](data-processing.md)
+- [Limitations](limitations.md)
+- [System Design](system-design.md)

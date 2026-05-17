@@ -126,43 +126,35 @@ The system follows a **multi-tier, service-oriented architecture**:
 ## Technology Stack
 
 ### Mobile Application
-- **Framework**: React Native with Expo
-- **Location**: expo-location (GPS)
-- **State Management**: Redux Toolkit
-- **API Client**: Axios
-- **Storage**: Expo SecureStore
+- **Framework**: React Native 0.81 with Expo SDK 54 (managed workflow)
+- **Language**: JavaScript (JSX) — no TypeScript
+- **Router**: expo-router v6 (file-based routing)
+- **Maps**: react-native-maps with Google Maps provider (`PROVIDER_GOOGLE`)
+- **State Management**: React `useState` / `useEffect` hooks (no Redux)
+- **API Client**: `fetch` (no Axios)
+- **Storage**: AsyncStorage (device ID, offline queue, background settings)
+- **Location**: expo-location with "Always Allow" background permission
+- **Background Collection**: expo-task-manager + expo-background-fetch (10-min interval)
+- **Cellular Metadata**: expo-cellular (carrier name Android-only; iOS 16+ returns null)
+- **Battery Monitoring**: expo-battery (skip collection below 15%)
 
 ### Backend API
-- **Runtime**: Node.js 18+
-- **Framework**: Express.js
+- **Runtime**: Node.js
+- **Framework**: Express.js v5
 - **ODM**: Mongoose
-- **Authentication**: JWT + API Keys
-- **Validation**: Joi
-- **Security**: Helmet + Rate Limiting
-
-### Web Dashboard
-- **Framework**: React 18+
-- **Build Tool**: Vite
-- **State Management**: React Query + Context
-- **Maps**: Mapbox GL JS
-- **Charts**: Recharts
-- **Styling**: Tailwind CSS (recommended)
+- **Geohash**: ngeohash (precision-6 cell generation)
+- **Caching**: Redis (localhost:6379 in dev) — 5-minute TTL, write-through invalidation
+- **No authentication** — open crowdsourced API
 
 ### Database
 - **Primary**: MongoDB Atlas
-- **Indexing**: 2dsphere (geospatial)
-- **Aggregations**: MongoDB Aggregation Framework
-- **Backup**: Automated (MongoDB Atlas)
+- **Indexing**: 2dsphere (geospatial), geohash, deviceId, connectivityFlag
+- **Aggregation**: MongoDB Aggregation Framework (on-demand, no pre-computed collections)
 
-### Infrastructure
-- **Backend Hosting**: Render / Railway / Fly.io
-- **Web Hosting**: Vercel
-- **Database**: MongoDB Atlas (managed)
-- **Cache**: Redis (optional, for scaling)
-- **CDN**: Cloudflare / Vercel Edge
-- **Mobile Distribution**: App Store + Google Play
-
-📖 **Learn More**: [Deployment Guide](deployment.md)
+### Infrastructure (Development)
+- **Backend**: runs locally on port 3000
+- **Mobile**: Expo Go / development build connecting to backend over local network
+- **API URL**: configured in `mobile/config/api.js`
 
 ---
 
