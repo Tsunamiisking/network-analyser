@@ -81,6 +81,10 @@ export default function Overview() {
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
+  // Shift dBm by +130 so bars grow from 0 upward (stronger signal = taller bar).
+  // Tooltip/axis formatters convert back to dBm for display.
+  const chartProviders = providers.map((p) => ({ ...p, signalScore: p.averageSignal + 130 }));
+
   const totalSamples = providers.reduce((s, p) => s + (p.totalSamples ?? 0), 0);
   const bestProvider = providers[0];
   const recentReports = [...reports].sort(
@@ -88,7 +92,7 @@ export default function Overview() {
   ).slice(0, 8);
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
@@ -104,7 +108,7 @@ export default function Overview() {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={Activity}
           label="Total Measurements"
@@ -148,16 +152,20 @@ export default function Overview() {
               <div className="h-48 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={providers} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <BarChart data={chartProviders} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="provider" tick={{ fontSize: 12 }} />
-                  <YAxis domain={[-130, -50]} tick={{ fontSize: 11 }} unit=" dBm" />
+                  <YAxis
+                    domain={[0, 80]}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => `${v - 130} dBm`}
+                  />
                   <Tooltip
-                    formatter={(v) => [`${v.toFixed(1)} dBm`, 'Avg Signal']}
+                    formatter={(v) => [`${(v - 130).toFixed(1)} dBm`, 'Avg Signal']}
                     labelFormatter={(l) => `Provider: ${l}`}
                   />
-                  <Bar dataKey="averageSignal" radius={[4, 4, 0, 0]}>
-                    {providers.map((p) => (
+                  <Bar dataKey="signalScore" radius={[4, 4, 0, 0]}>
+                    {chartProviders.map((p) => (
                       <Cell key={p.provider} fill={PROVIDER_COLORS[p.provider] ?? '#94a3b8'} />
                     ))}
                   </Bar>

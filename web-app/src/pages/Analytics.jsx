@@ -80,6 +80,9 @@ export default function Analytics() {
   const qualityDist = buildQualityDist(cells);
   const totalCells = qualityDist.reduce((s, d) => s + d.value, 0);
 
+  // Shift dBm by +130 so bars grow from 0 upward (stronger signal = taller bar).
+  const chartProviders = providers.map((p) => ({ ...p, signalScore: p.averageSignal + 130 }));
+
   // Radar data: normalise each provider's signal to 0–100 scale
   // (-55 = 100, -130 = 0)
   const radarData = providers.map((p) => ({
@@ -89,7 +92,7 @@ export default function Analytics() {
   }));
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -123,13 +126,17 @@ export default function Analytics() {
               <div className="h-52 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={providers} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <BarChart data={chartProviders} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="provider" tick={{ fontSize: 12 }} />
-                  <YAxis domain={[-130, -50]} tick={{ fontSize: 11 }} unit=" dBm" />
-                  <Tooltip formatter={(v) => [`${v.toFixed(1)} dBm`, 'Avg Signal']} />
-                  <Bar dataKey="averageSignal" radius={[4, 4, 0, 0]}>
-                    {providers.map((p) => (
+                  <YAxis
+                    domain={[0, 80]}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => `${v - 130} dBm`}
+                  />
+                  <Tooltip formatter={(v) => [`${(v - 130).toFixed(1)} dBm`, 'Avg Signal']} />
+                  <Bar dataKey="signalScore" radius={[4, 4, 0, 0]}>
+                    {chartProviders.map((p) => (
                       <Cell key={p.provider} fill={PROVIDER_COLORS[p.provider] ?? '#94a3b8'} />
                     ))}
                   </Bar>
