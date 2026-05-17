@@ -166,12 +166,14 @@ exports.clusterDeadZones = (data, epsilon = 400, minPoints = 5) => {
  * @param {String} qualityLevel - 'excellent', 'good', 'poor', 'very_poor'
  */
 exports.clusterBySignalQuality = (data, qualityLevel, epsilon = 300, minPoints = 10) => {
+  // Signal quality thresholds aligned with the system-wide definitions
+  // (networkController.js classifySignalQuality, theme.js SIGNAL_THRESHOLDS)
   const qualityRanges = {
-    excellent: { min: -70, max: 0 },
-    good: { min: -85, max: -70 },
-    fair: { min: -100, max: -85 },
-    poor: { min: -110, max: -100 },
-    very_poor: { min: -200, max: -110 },
+    excellent: { min: -85, max: 0 },      // > -85 dBm
+    good:      { min: -95, max: -85 },    // -95 < signal <= -85
+    fair:      { min: -105, max: -95 },   // -105 < signal <= -95
+    poor:      { min: -115, max: -105 },  // -115 < signal <= -105
+    very_poor: { min: -200, max: -115 },  // <= -115 dBm
   };
 
   const range = qualityRanges[qualityLevel];
@@ -180,7 +182,7 @@ exports.clusterBySignalQuality = (data, qualityLevel, epsilon = 300, minPoints =
   }
 
   const filteredData = data.filter(doc => 
-    doc.signalStrength >= range.min && doc.signalStrength < range.max
+    doc.signalStrength > range.min && doc.signalStrength <= range.max
   );
 
   const result = exports.performDBSCAN(filteredData, epsilon, minPoints);

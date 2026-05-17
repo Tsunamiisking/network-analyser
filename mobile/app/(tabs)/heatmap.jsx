@@ -8,12 +8,10 @@ import {
   Alert 
 } from 'react-native';
 import React, { useState, useEffect, useRef } from 'react';
-import MapView, { Circle, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { 
   getAggregatedHeatmap, 
-  getDeadZoneClusters, 
-  getSignalQualityClusters,
   submitNetworkData 
 } from '../../services/api';
 import { assembleTelemetryPacket } from '../../services/sensingService';
@@ -29,7 +27,17 @@ import {
   SIGNAL_COLORS,
   getSignalColor 
 } from '../../constants/theme';
-import { PROVIDERS, SIGNAL_QUALITY_LEVELS, DBSCAN_DEFAULTS } from '../../config/api';
+import { PROVIDERS, SIGNAL_QUALITY_LEVELS } from '../../config/api';
+
+// Signal quality ranges aligned with the system-wide thresholds
+// Must match: networkController.js classifySignalQuality, theme.js SIGNAL_THRESHOLDS
+const QUALITY_RANGES = {
+  excellent: { min: -85, max: 0 },      // > -85 dBm
+  good:      { min: -95, max: -85 },    // -95 < signal <= -85
+  fair:      { min: -105, max: -95 },   // -105 < signal <= -95
+  poor:      { min: -115, max: -105 },  // -115 < signal <= -105
+  very_poor: { min: -200, max: -115 },  // <= -115 dBm
+};
 
 // Nigeria SW region (covers Lagos, Ibadan, and surrounding areas)
 const INITIAL_REGION = {
@@ -181,52 +189,39 @@ export default function Heatmap() {
   const loadMapData = async () => {
     setLoading(true);
     try {
-      let data = [];
-      
-      // Build filters, removing undefined values
+      // All modes use the same aggregated heatmap data for consistency.
+      // Quality and Dead Zone modes filter this data client-side so they
+      // always match what is visible in the regular heatmap view.
       const filters = {};
       if (provider !== 'All') filters.provider = provider;
-      // Removed hardcoded bounding box - show all available data
-      // Backend will return all data within Nigeria (geo-fenced at API level)
 
-      switch (mode) {
-        case MODES.HEATMAP:
-          const result = await getAggregatedHeatmap({
-            precision: 6,
-            ...filters,
-          });
-          data = result.data || []; // Extract data array from response
-          break;
+      const result = await getAggregatedHeatmap({
+        precision: 6,
+        ...filters,
+      });
+      const allData = result.data || [];
 
-        case MODES.DEAD_ZONES:
-          const deadZones = await getDeadZoneClusters({
-            epsilon: DBSCAN_DEFAULTS.DEAD_ZONE_EPSILON,
-            minPoints: DBSCAN_DEFAULTS.DEAD_ZONE_MIN_POINTS,
-            ...filters,
-          });
-          data = deadZones.clusters || [];
-          break;
+      let data = allData;
 
-        case MODES.QUALITY:
-          const quality = await getSignalQualityClusters({
-            qualityLevel,
-            epsilon: DBSCAN_DEFAULTS.QUALITY_EPSILON,
-            minPoints: DBSCAN_DEFAULTS.QUALITY_MIN_POINTS,
-            ...filters,
-          });
-          data = quality.clusters || [];
-          break;
+      if (mode === MODES.QUALITY) {
+        // Filter geohash cells whose median signal falls in the selected quality band
+        const range = QUALITY_RANGES[qualityLevel];
+        if (range) {
+          data = allData.filter(d =>
+            d.medianSignalStrength > range.min && d.medianSignalStrength <= range.max
+          );
+        }
+      } else if (mode === MODES.DEAD_ZONES) {
+        // Dead zones = geohash cells with consistently very poor signal (≤ -115 dBm).
+        // Using the same data as the heatmap prevents false dead zones in good-signal areas.
+        data = allData.filter(d => d.medianSignalStrength <= -115);
       }
 
       setClusters(data);
-      // console.log(`✅ Loaded ${data.length} ${mode} items`);
-      if (data.length > 0) {
-        // console.log('Sample data structure:', JSON.stringify(data[0], null, 2));
-      }
     } catch (error) {
       console.error('Failed to load map data:', error);
       Alert.alert('Error', 'Failed to load map data. Please try again.');
-      setClusters([]); // Set empty array on error
+      setClusters([]);
     } finally {
       setLoading(false);
     }
@@ -264,73 +259,30 @@ export default function Heatmap() {
     }).filter(Boolean);
   };
 
-  const renderDeadZonePolygons = () => {
-    return clusters.map((cluster) => {
-      // Validate bounding box exists
-      if (!cluster.boundingBox || 
-          !cluster.boundingBox.minLat || 
-          !cluster.boundingBox.maxLat || 
-          !cluster.boundingBox.minLng || 
-          !cluster.boundingBox.maxLng) {
-        console.warn('Dead zone cluster missing bounding box:', cluster);
-        return null;
-      }
-      
-      const coords = [
-        { 
-          latitude: cluster.boundingBox.minLat, 
-          longitude: cluster.boundingBox.minLng 
-        },
-        { 
-          latitude: cluster.boundingBox.maxLat, 
-          longitude: cluster.boundingBox.minLng 
-        },
-        { 
-          latitude: cluster.boundingBox.maxLat, 
-          longitude: cluster.boundingBox.maxLng 
-        },
-        { 
-          latitude: cluster.boundingBox.minLat, 
-          longitude: cluster.boundingBox.maxLng 
-        },
-      ];
+  // Dead zones: render red circles using the same aggregated heatmap data format.
+  // Only called for cells with medianSignalStrength <= -115 (already filtered in loadMapData).
+  const renderDeadZoneCircles = () => {
+    return clusters.map((cluster, index) => {
+      const lat = cluster.location?.coordinates?.[1];
+      const lng = cluster.location?.coordinates?.[0];
+      if (!lat || !lng) return null;
 
       return (
-        <Polygon
-          key={`deadzone-${cluster.id}`}
-          coordinates={coords}
-          fillColor="rgba(239, 68, 68, 0.3)"
-          strokeColor="rgba(239, 68, 68, 0.8)"
+        <Circle
+          key={`deadzone-${index}`}
+          center={{ latitude: lat, longitude: lng }}
+          radius={700}
+          fillColor="rgba(239, 68, 68, 0.35)"
+          strokeColor="rgba(239, 68, 68, 0.85)"
           strokeWidth={2}
         />
       );
     }).filter(Boolean);
   };
 
-  const renderQualityClusters = () => {
-    return clusters.map((cluster) => {
-      // Safety check for centroid
-      if (!cluster.centroid || !cluster.centroid.lat || !cluster.centroid.lng) {
-        console.warn('Cluster missing centroid:', cluster);
-        return null;
-      }
-      
-      const color = getSignalColor(cluster.metrics?.avgSignalStrength || -100);
-      return (
-        <Circle
-          key={`quality-${cluster.id}`}
-          center={{
-            latitude: cluster.centroid.lat,
-            longitude: cluster.centroid.lng,
-          }}
-          radius={800}
-          fillColor={color + '4D'} // 30% transparency
-          strokeColor={color + 'CC'}
-          strokeWidth={2}
-        />
-      );
-    }).filter(Boolean); // Remove null entries
-  };
+  // Quality clusters: already filtered to the selected quality band in loadMapData.
+  // Reuses the heatmap circle renderer so colours and radius stay consistent.
+  const renderQualityClusters = () => renderHeatmapCircles();
 
   const getQualityColor = (level) => {
     switch (level) {
@@ -362,7 +314,7 @@ export default function Heatmap() {
         showsMyLocationButton={false}
       >
         {!loading && mode === MODES.HEATMAP && renderHeatmapCircles()}
-        {!loading && mode === MODES.DEAD_ZONES && renderDeadZonePolygons()}
+        {!loading && mode === MODES.DEAD_ZONES && renderDeadZoneCircles()}
         {!loading && mode === MODES.QUALITY && renderQualityClusters()}
       </MapView>
 
@@ -395,9 +347,9 @@ export default function Heatmap() {
           
           {/* Mode Description */}
           <Text style={styles.modeDescription}>
-            {mode === MODES.HEATMAP && '📊 Typical signal strength per area (median value)'}
-            {mode === MODES.DEAD_ZONES && '⚠️ Areas with no connectivity detected'}
-            {mode === MODES.QUALITY && '🎯 Filter by specific signal quality levels'}
+            {mode === MODES.HEATMAP && '📊 Median signal strength per area'}
+            {mode === MODES.DEAD_ZONES && '🔴 Areas where median signal is Very Poor (≤ -115 dBm)'}
+            {mode === MODES.QUALITY && `🎯 Showing areas with ${qualityLevel.replace('_', ' ')} signal`}
           </Text>
           
           {/* Mode Selector */}
@@ -521,22 +473,20 @@ export default function Heatmap() {
           )}
 
           {/* Stats */}
-          {!loading && clusters.length > 0 && (
+          {!loading && (
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{clusters.length}</Text>
                 <Text style={styles.statLabel}>
-                  {mode === MODES.HEATMAP ? 'Areas' : 'Clusters'}
+                  {mode === MODES.DEAD_ZONES ? 'Dead Zones' : 'Areas'}
                 </Text>
               </View>
-              {mode !== MODES.HEATMAP && clusters[0]?.pointCount && (
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>
-                    {clusters.reduce((sum, c) => sum + (c.pointCount || 0), 0)}
-                  </Text>
-                  <Text style={styles.statLabel}>Data Points</Text>
-                </View>
-              )}
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>
+                  {clusters.reduce((sum, c) => sum + (c.count || 0), 0)}
+                </Text>
+                <Text style={styles.statLabel}>Readings</Text>
+              </View>
             </View>
           )}
         </View>
@@ -559,9 +509,9 @@ export default function Heatmap() {
           
           {/* Mode-specific descriptions */}
           <Text style={styles.legendDescription}>
-            {mode === MODES.HEATMAP && 'Median signal per 1.2km area'}
-            {mode === MODES.DEAD_ZONES && 'Areas with connection failures'}
-            {mode === MODES.QUALITY && `${qualityLevel.replace('_', ' ')} areas (DBSCAN)`}
+            {mode === MODES.HEATMAP && 'Median signal per ~1.2km cell'}
+            {mode === MODES.DEAD_ZONES && 'Cells with median signal ≤ -115 dBm'}
+            {mode === MODES.QUALITY && `Cells with ${qualityLevel.replace('_', ' ')} signal`}
           </Text>
           
           <View style={styles.legendItems}>
@@ -570,27 +520,27 @@ export default function Heatmap() {
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.strong }]} />
                   <Text style={styles.legendText}>Excellent</Text>
-                  <Text style={styles.legendSubtext}>≥ -70</Text>
+                  <Text style={styles.legendSubtext}>&gt; -85</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: '#84cc16' }]} />
                   <Text style={styles.legendText}>Good</Text>
-                  <Text style={styles.legendSubtext}>-71 to -85</Text>
+                  <Text style={styles.legendSubtext}>-95 to -85</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.moderate }]} />
                   <Text style={styles.legendText}>Fair</Text>
-                  <Text style={styles.legendSubtext}>-86 to -100</Text>
+                  <Text style={styles.legendSubtext}>-105 to -95</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.weak }]} />
                   <Text style={styles.legendText}>Poor</Text>
-                  <Text style={styles.legendSubtext}>-101 to -110</Text>
+                  <Text style={styles.legendSubtext}>-115 to -105</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: SIGNAL_COLORS.veryWeak }]} />
                   <Text style={styles.legendText}>Very Poor</Text>
-                  <Text style={styles.legendSubtext}> -110</Text>
+                  <Text style={styles.legendSubtext}>&le; -115</Text>
                 </View>
               </>
             )}
@@ -600,12 +550,12 @@ export default function Heatmap() {
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: 'rgba(239, 68, 68, 0.6)' }]} />
                   <Text style={styles.legendText}>Dead Zone</Text>
-                  <Text style={styles.legendSubtext}>No signal</Text>
+                  <Text style={styles.legendSubtext}>≤ -115 dBm</Text>
                 </View>
                 <View style={styles.legendNote}>
                   <MaterialIcons name="info-outline" size={12} color={COLORS.textMuted} />
                   <Text style={styles.legendNoteText}>
-                    Larger areas = worse coverage
+                    Matches Very Poor areas in heatmap
                   </Text>
                 </View>
               </>
@@ -616,12 +566,19 @@ export default function Heatmap() {
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: getQualityColor(qualityLevel) }]} />
                   <Text style={styles.legendText}>{qualityLevel.replace('_', ' ').toUpperCase()}</Text>
-                  <Text style={styles.legendSubtext}>AI clusters</Text>
+                  <Text style={styles.legendSubtext}>
+                    {QUALITY_RANGES[qualityLevel]?.min === -200
+                      ? '≤ -115 dBm'
+                      : QUALITY_RANGES[qualityLevel]?.min === -85
+                      ? '> -85 dBm'
+                      : `${QUALITY_RANGES[qualityLevel]?.min} to ${QUALITY_RANGES[qualityLevel]?.max} dBm`
+                    }
+                  </Text>
                 </View>
                 <View style={styles.legendNote}>
                   <MaterialIcons name="info-outline" size={12} color={COLORS.textMuted} />
                   <Text style={styles.legendNoteText}>
-                    Use filter above to change level
+                    Same data as heatmap, filtered by quality
                   </Text>
                 </View>
               </>
