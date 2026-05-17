@@ -263,14 +263,27 @@ export default function Heatmap() {
       if (!lat || !lng) return null;
 
       const config = ISSUE_CONFIG[report.issueType] || { color: COLORS.textMuted, icon: 'report-problem' };
+      // Use occurredAt (when the issue happened) if provided, else fall back to submission time
+      const eventTime = report.occurredAt || report.timestamp;
       const timeAgo = (() => {
-        if (!report.timestamp) return '';
-        const diff = new Date() - new Date(report.timestamp);
+        if (!eventTime) return '';
+        const diff = new Date() - new Date(eventTime);
         const mins = Math.floor(diff / 60000);
         if (mins < 60) return `${mins}m ago`;
         const hrs = Math.floor(mins / 60);
         if (hrs < 24) return `${hrs}h ago`;
         return `${Math.floor(hrs / 24)}d ago`;
+      })();
+
+      // If the user reported it significantly after the event, note the lag
+      const reportedLater = (() => {
+        if (!report.occurredAt || !report.timestamp) return null;
+        const lagMins = Math.round(
+          (new Date(report.timestamp) - new Date(report.occurredAt)) / 60000
+        );
+        if (lagMins < 5) return null;
+        if (lagMins < 60) return `reported ${lagMins}m later`;
+        return `reported ${Math.floor(lagMins / 60)}h later`;
       })();
 
       return (
@@ -291,6 +304,9 @@ export default function Heatmap() {
                 {report.issueType}
               </Text>
               <Text style={styles.reportCalloutProvider}>{report.provider} · {timeAgo}</Text>
+              {reportedLater ? (
+                <Text style={styles.reportCalloutLag}>{reportedLater}</Text>
+              ) : null}
               {report.description ? (
                 <Text style={styles.reportCalloutDesc}>{report.description}</Text>
               ) : null}
@@ -1155,6 +1171,13 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: FONT_SIZES.small,
     color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  reportCalloutLag: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.tiny,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
     marginBottom: 4,
   },
   reportCalloutDesc: {

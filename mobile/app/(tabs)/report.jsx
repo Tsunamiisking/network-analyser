@@ -27,6 +27,14 @@ const PROVIDER_OPTIONS = [
   { label: '9mobile', value: '9mobile' },
 ];
 
+const WHEN_OPTIONS = [
+  { label: 'Just now',       minutesAgo: 0   },
+  { label: '~30 min ago',    minutesAgo: 30  },
+  { label: '~1 hour ago',    minutesAgo: 60  },
+  { label: '~2 hours ago',   minutesAgo: 120 },
+  { label: 'Earlier today',  minutesAgo: 480 },
+];
+
 const ISSUE_TYPE_OPTIONS = [
   { 
     label: 'No Signal', 
@@ -58,6 +66,7 @@ export default function Report() {
   const [provider, setProvider] = useState('');
   const [issueType, setIssueType] = useState('');
   const [description, setDescription] = useState('');
+  const [whenHappened, setWhenHappened] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const handleSubmit = async () => {
@@ -94,12 +103,17 @@ export default function Report() {
         accuracy: Location.Accuracy.Balanced,
       });
 
+      const occurredAt = whenHappened !== null
+        ? new Date(Date.now() - whenHappened.minutesAgo * 60000).toISOString()
+        : undefined;
+
       const reportData = {
         provider,
         issueType,
         description: description.trim(),
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
+        ...(occurredAt ? { occurredAt } : {}),
       };
 
       // Submit to backend
@@ -119,6 +133,7 @@ export default function Report() {
                 setProvider('');
                 setIssueType('');
                 setDescription('');
+                setWhenHappened(null);
               }
             }
           ]
@@ -203,6 +218,32 @@ export default function Report() {
               </Text>
             </View>
             
+            {/* When did this happen? */}
+            <View style={styles.whenContainer}>
+              <Text style={styles.label}>When did this happen? (Optional)</Text>
+              <View style={styles.whenChips}>
+                {WHEN_OPTIONS.map((opt) => {
+                  const selected = whenHappened?.minutesAgo === opt.minutesAgo;
+                  return (
+                    <TouchableOpacity
+                      key={opt.label}
+                      style={[styles.whenChip, selected && styles.whenChipSelected]}
+                      onPress={() => setWhenHappened(selected ? null : opt)}
+                    >
+                      <Text style={[styles.whenChipText, selected && styles.whenChipTextSelected]}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {whenHappened !== null && (
+                <Text style={styles.whenHint}>
+                  Issue will be marked as occurring ~{whenHappened.minutesAgo} min before submission
+                </Text>
+              )}
+            </View>
+
             {/* Submit Button */}
             <TouchableOpacity
               style={[
@@ -325,6 +366,50 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'right',
     marginTop: SPACING.sm,
+  },
+
+  whenContainer: {
+    marginBottom: SPACING.sm,
+  },
+
+  whenChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginTop: SPACING.xs,
+  },
+
+  whenChip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+
+  whenChipSelected: {
+    borderColor: COLORS.info,
+    backgroundColor: COLORS.info + '20',
+  },
+
+  whenChipText: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textSecondary,
+  },
+
+  whenChipTextSelected: {
+    fontFamily: FONTS.headerSemibold,
+    color: COLORS.info,
+  },
+
+  whenHint: {
+    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.tiny,
+    color: COLORS.textMuted,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
   },
   
   submitButton: {

@@ -9,7 +9,7 @@ const CACHE_TTL = 300; // 5 minutes
 // (the mobile client queues them locally and uploads when back online).
 exports.submitReport = async (req, res) => {
   try {
-    const { provider, issueType, description, latitude, longitude } = req.body;
+    const { provider, issueType, description, latitude, longitude, occurredAt } = req.body;
 
     if (!provider || !issueType || latitude === undefined || longitude === undefined) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -31,6 +31,7 @@ exports.submitReport = async (req, res) => {
         type: "Point",
         coordinates: [lng, lat],
       },
+      ...(occurredAt ? { occurredAt: new Date(occurredAt) } : {}),
     });
 
     // Invalidate all cached GET /api/reports responses so the new report

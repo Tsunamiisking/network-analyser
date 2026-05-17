@@ -34,6 +34,13 @@ const reportSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+
+  // Optional: the time when the issue actually occurred, which may predate
+  // the submission time when the user reports a past or intermittent event.
+  occurredAt: {
+    type: Date,
+    default: null,
+  },
 });
 
 reportSchema.index({ location: "2dsphere" });
