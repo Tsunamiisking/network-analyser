@@ -24,15 +24,21 @@ import {
   startBackgroundCollection,
   stopBackgroundCollection,
   getCollectionStats,
-  resetStats,
+  resetStats as resetBackgroundStats,
   isBackgroundCollectionRegistered,
 } from '../../services/backgroundCollectionService';
+import { 
+  getSubmissionStats, 
+  resetStats as resetSubmissionStats,
+  getSuccessRate,
+} from '../../services/submissionTracker';
 import { getDeviceId } from '../../utils/helpers';
 
 export default function Settings() {
   const [isEnabled, setIsEnabled] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [stats, setStats] = useState(null);
+  const [submissionStats, setSubmissionStats] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,9 +56,11 @@ export default function Settings() {
   const loadSettings = async () => {
     try {
       const collectionStats = await getCollectionStats();
+      const submissions = await getSubmissionStats();
       const registered = await isBackgroundCollectionRegistered();
       
       setStats(collectionStats);
+      setSubmissionStats(submissions);
       setIsEnabled(collectionStats.enabled);
       setIsRegistered(registered);
     } catch (error) {
@@ -126,16 +134,17 @@ export default function Settings() {
   const handleResetStats = () => {
     Alert.alert(
       'Reset Statistics',
-      'Are you sure you want to reset all collection statistics?',
+      'Are you sure you want to reset all statistics? This will clear both manual and background submission counts.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Reset',
           style: 'destructive',
           onPress: async () => {
-            await resetStats();
+            await resetBackgroundStats();
+            await resetSubmissionStats();
             await loadSettings();
-            Alert.alert('Success', 'Statistics have been reset.');
+            Alert.alert('Success', 'All statistics have been reset.');
           },
         },
       ]
@@ -243,7 +252,7 @@ export default function Settings() {
         {/* Statistics Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Collection Statistics</Text>
+            <Text style={styles.sectionTitle}>Overall Statistics</Text>
             <TouchableOpacity onPress={handleResetStats}>
               <Text style={styles.resetButton}>Reset</Text>
             </TouchableOpacity>
@@ -252,20 +261,44 @@ export default function Settings() {
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <MaterialIcons name="cloud-upload" size={32} color={COLORS.success} />
-              <Text style={styles.statValue}>{stats?.totalCollections || 0}</Text>
-              <Text style={styles.statLabel}>Total Collections</Text>
+              <Text style={styles.statValue}>{submissionStats?.totalSubmissions || 0}</Text>
+              <Text style={styles.statLabel}>Total Submissions</Text>
             </View>
 
             <View style={styles.statCard}>
-              <MaterialIcons name="error-outline" size={32} color={COLORS.danger} />
-              <Text style={styles.statValue}>{stats?.failedCollections || 0}</Text>
+              <MaterialIcons name="touch-app" size={32} color={COLORS.info} />
+              <Text style={styles.statValue}>{submissionStats?.manualSubmissions || 0}</Text>
+              <Text style={styles.statLabel}>Manual</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <MaterialIcons name="schedule" size={32} color={COLORS.warning} />
+              <Text style={styles.statValue}>{submissionStats?.backgroundSubmissions || 0}</Text>
+              <Text style={styles.statLabel}>Background</Text>
+            </View>
+          </View>
+
+          <View style={[styles.statsGrid, { marginTop: SPACING.sm }]}>
+            <View style={styles.statCard}>
+              <MaterialIcons name="error-outline" size={32} color={COLORS.error} />
+              <Text style={styles.statValue}>{submissionStats?.failedSubmissions || 0}</Text>
               <Text style={styles.statLabel}>Failed</Text>
             </View>
 
             <View style={styles.statCard}>
-              <MaterialIcons name="trending-up" size={32} color={COLORS.info} />
-              <Text style={styles.statValue}>{stats?.successRate || 0}%</Text>
+              <MaterialIcons name="trending-up" size={32} color={COLORS.success} />
+              <Text style={styles.statValue}>{getSuccessRate(submissionStats || {})}%</Text>
               <Text style={styles.statLabel}>Success Rate</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <MaterialIcons name="access-time" size={32} color={COLORS.textSecondary} />
+              <Text style={[styles.statValue, { fontSize: FONT_SIZES.body }]} numberOfLines={1} adjustsFontSizeToFit>
+                {submissionStats?.lastSubmissionTime 
+                  ? formatLastCollection(submissionStats.lastSubmissionTime) 
+                  : 'Never'}
+              </Text>
+              <Text style={styles.statLabel}>Last Submission</Text>
             </View>
           </View>
         </View>
@@ -448,6 +481,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.h2,
     color: COLORS.textPrimary,
     marginTop: SPACING.xs,
+    textAlign: 'center',
   },
 
   statLabel: {

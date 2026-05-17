@@ -18,6 +18,7 @@ import {
 } from '../../services/api';
 import { assembleTelemetryPacket } from '../../services/sensingService';
 import { getCollectionStats } from '../../services/backgroundCollectionService';
+import { recordSuccess, recordFailure } from '../../services/submissionTracker';
 import { 
   COLORS, 
   FONTS, 
@@ -155,6 +156,9 @@ export default function Heatmap() {
     try {
       await submitNetworkData(telemetryData);
       
+      // Track successful manual submission
+      await recordSuccess('manual');
+      
       Alert.alert(
         'Success! 🎉',
         `Thank you for contributing! Signal: ${telemetryData.signalStrength}dBm, Provider: ${telemetryData.provider}`,
@@ -165,6 +169,10 @@ export default function Heatmap() {
           }
         ]
       );
+    } catch (error) {
+      // Track failed submission
+      await recordFailure();
+      throw error;
     } finally {
       setIsContributing(false);
     }
