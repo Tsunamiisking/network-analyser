@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
 
   statValue: {
     fontFamily: FONTS.bold,
-    fontSize: FONT_SIZES.header,
+    fontSize: FONT_SIZES.body,
     color: COLORS.textPrimary,
     marginTop: SPACING.xs,
     textAlign: 'center',
