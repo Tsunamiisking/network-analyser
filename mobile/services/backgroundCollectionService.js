@@ -23,6 +23,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { assembleTelemetryPacket } from './sensingService';
 import { submitNetworkData } from './api';
+import { recordSuccess, recordFailure } from './submissionTracker';
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ const performCollection = async () => {
       await updateSettings({ 
         failedCollections: settings.failedCollections + 1 
       });
+      await recordFailure();
       return BackgroundFetch.BackgroundFetchResult.Failed;
     }
 
@@ -121,11 +123,14 @@ const performCollection = async () => {
     
     console.log(`✅ Background collection successful! Signal: ${telemetryData.signalStrength}dBm, Provider: ${telemetryData.provider}`);
     
-    // Update stats
+    // Update background collection stats
     await updateSettings({
       lastCollectionTime: new Date().toISOString(),
       totalCollections: settings.totalCollections + 1,
     });
+    
+    // Track successful background submission in unified tracker
+    await recordSuccess('background');
     
     return BackgroundFetch.BackgroundFetchResult.NewData;
     
@@ -134,6 +139,7 @@ const performCollection = async () => {
     await updateSettings({ 
       failedCollections: settings.failedCollections + 1 
     });
+    await recordFailure();
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 };
