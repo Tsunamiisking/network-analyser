@@ -85,7 +85,7 @@ export default function Settings() {
         if (result.success) {
           Alert.alert(
             'Background Collection Enabled',
-            'The app will now collect network data every 12 minutes in the background. You can disable this anytime.',
+            'The app will now collect network data every 10 minutes in the background. You can disable this anytime.',
             [{ text: 'OK' }]
           );
           setIsEnabled(true);
@@ -208,7 +208,7 @@ export default function Settings() {
                 <View style={styles.settingText}>
                   <Text style={styles.settingLabel}>Auto-collect Data</Text>
                   <Text style={styles.settingDescription}>
-                    Collect network data every 12 minutes
+                    Collect network data every 10 minutes
                   </Text>
                 </View>
               </View>
@@ -325,7 +325,7 @@ export default function Settings() {
               <MaterialIcons name="info-outline" size={20} color={COLORS.info} />
               <Text style={styles.infoBoxText}>
                 Background collection helps improve network coverage maps by automatically 
-                collecting signal data. Data is collected every 12 minutes when your battery 
+                collecting signal data. Data is collected every 10 minutes when your battery 
                 is above 15%.
               </Text>
             </View>

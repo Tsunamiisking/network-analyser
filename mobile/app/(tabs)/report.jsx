@@ -161,7 +161,7 @@ export default function Report() {
             </View>
             <Text style={styles.headerTitle}>Report Network Issue</Text>
             <Text style={styles.headerSubtitle}>
-              Help us identify and resolve connectivity problems in your area
+              Report recent or intermittent network issues like slow speeds, call drops, or connectivity problems
             </Text>
           </View>
           
@@ -230,7 +230,7 @@ export default function Report() {
             <View style={styles.infoNote}>
               <MaterialIcons name="info-outline" size={18} color={COLORS.info} />
               <Text style={styles.infoNoteText}>
-                Your location will be automatically captured when you submit to help identify problem areas
+                For complete outages, our automatic background collection system captures dead zones. Use this form for intermittent issues or recently-resolved problems.
               </Text>
             </View>
           </View>
