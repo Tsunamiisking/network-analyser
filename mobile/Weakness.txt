@@ -1,0 +1,16 @@
+Weaknesses you WILL be asked about — prepare answers:
+
+"How accurate is your signal strength?"
+You can't get real RSRP in Expo managed workflow, so you use latency → dBm proxy. Be upfront: it's a relative quality indicator, not a calibrated measurement. The 5-tier thresholds are consistent across the system. A bare-workflow native module could give real RSRP — that's a future improvement.
+
+"iOS doesn't return the carrier — how does that affect your data?"
+Android is the primary target. iOS data enters the DB as "iOS Carrier" and is excluded from per-provider analysis. All 4 Nigerian carriers (MTN, Airtel, Glo, 9mobile) are Android-sourced. This is the same constraint NCC-licensed tools face.
+
+"Your heatmap might be sparse — how do you handle low data density?"
+The geohash precision-6 cells (~1.2 km²) aggregate all readings in that area. Sparse areas simply show no circles — which is itself valid information (no coverage data collected there yet). This is honest rather than extrapolating.
+
+"Why not authenticate users?"
+Crowdsourcing works better with low friction. Anonymous device IDs (UUID stored in AsyncStorage) allow per-device history tracking without registration barriers. Trust comes from volume and median aggregation, not identity.
+
+"Background collection on iOS is minimum 15 minutes, not 10"
+iOS BGFetch has a system-controlled minimum. Your 10-min setting is honoured on Android; iOS respects it as a request but enforces its own minimum. Documented limitation.
