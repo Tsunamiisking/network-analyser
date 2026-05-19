@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import MapView, { Circle, Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Circle, Marker, Callout } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { 
   getAggregatedHeatmap, 
@@ -396,7 +396,6 @@ export default function Heatmap() {
       {/* Map View */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={INITIAL_REGION}
         customMapStyle={darkMapStyle}
