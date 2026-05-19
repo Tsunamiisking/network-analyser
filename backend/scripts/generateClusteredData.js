@@ -1,3 +1,19 @@
+/**
+ * generateClusteredData.js — Synthetic Data Generator (Clustered)
+ *
+ * Seed script that populates the MongoDB `networkdatas` collection with
+ * spatially structured synthetic measurements for testing and demonstration.
+ * Data is organised into four pattern groups:
+ *   - Dead zones (Mushin, Apapa, Oshodi, Ejigbo): connectivityFlag=false, signal −140 to −115 dBm
+ *   - Excellent signal areas (Victoria Island, Banana Island, Lekki): −65 to −45 dBm, 4G/5G
+ *   - Poor signal areas (Ajah, Maryland, Festac): −115 to −95 dBm
+ *   - Provider-specific coverage zones (one per carrier)
+ * Points within each cluster are drawn from a Gaussian distribution centred on
+ * the cluster's lat/lng, producing realistic spatial spread. A further 150
+ * uniformly random "background noise" points are added across Lagos.
+ * All existing documents are deleted before insertion.
+ * Run with: node scripts/generateClusteredData.js
+ */
 require("dotenv").config();
 const mongoose = require("mongoose");
 const NetworkData = require("../src/models/NetworkData");

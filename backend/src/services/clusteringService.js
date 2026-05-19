@@ -1,3 +1,29 @@
+/**
+ * clusteringService.js — Spatial Clustering Engine
+ *
+ * Provides DBSCAN-based geographic clustering of network measurement documents
+ * retrieved from MongoDB. Uses the Haversine formula for great-circle distance
+ * so that the epsilon neighbourhood radius is meaningful in metres on the Earth's
+ * surface, not in degrees.
+ *
+ * Exported functions:
+ *   performDBSCAN(data, epsilon, minPoints)
+ *     Core clustering. Returns enriched cluster objects with centroid, bounding
+ *     box, avg/min/max signal, providers, and per-point metadata.
+ *
+ *   clusterDeadZones(data, epsilon=400, minPoints=5)
+ *     Pre-filters for connectivityFlag=false then calls performDBSCAN.
+ *     Identifies persistent dead zones from blackout samples.
+ *
+ *   clusterBySignalQuality(data, qualityLevel, epsilon=300, minPoints=10)
+ *     Filters by dBm range (excellent/good/fair/poor/very_poor) then clusters.
+ *
+ *   clusterByProvider(data, provider, epsilon=300, minPoints=10)
+ *     Filters by carrier name then clusters coverage zones per provider.
+ *
+ *   findAnomalies(data, epsilon=300, minPoints=10)
+ *     Returns DBSCAN noise points — isolated readings not belonging to any cluster.
+ */
 const DBSCAN = require('density-clustering').DBSCAN;
 
 /**

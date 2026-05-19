@@ -1,3 +1,16 @@
+/**
+ * generateSyntheticData.js — Synthetic Data Generator (Random)
+ *
+ * Simple seed script that inserts a configurable number of uniformly random
+ * network measurement records into the MongoDB `networkdatas` collection.
+ * Coordinates are sampled uniformly across the Lagos bounding box
+ * (lat 6.40–6.70, lng 3.20–3.50). Signal strength is random in [−110, −50] dBm.
+ * Provider and network type are chosen at random from the four Nigerian carriers
+ * and three generations (3G/4G/5G). Unlike generateClusteredData.js, this script
+ * does NOT clear existing data before inserting.
+ * Default count: 10,000 records.
+ * Run with: node scripts/generateSyntheticData.js
+ */
 const mongoose = require("mongoose");
 const NetworkData = require("../src/models/NetworkData");
 const ngeohash = require("ngeohash");

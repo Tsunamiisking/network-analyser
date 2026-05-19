@@ -1,3 +1,13 @@
+/**
+ * redis.js — Redis Client Configuration
+ *
+ * Creates and exports a singleton Redis client used for caching expensive
+ * MongoDB aggregation results (heatmap queries, best-network lookups).
+ * Connection target: 127.0.0.1:6379 (overridable via REDIS_HOST / REDIS_PORT env vars).
+ * Reconnection strategy: exponential back-off up to 10 retries, then gives up.
+ * If Redis is unavailable the app continues without caching — all cache reads
+ * and writes are wrapped in try/catch throughout the controllers.
+ */
 const redis = require("redis");
 
 const redisClient = redis.createClient({
